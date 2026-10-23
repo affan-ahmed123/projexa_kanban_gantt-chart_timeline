@@ -110,21 +110,19 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
           gender: existingAccount?.gender || "neutral"
         });
 
-        switchActiveWorkspace(wsId);
-
-        const session: UserSession = {
-          id: existingAccount?.id || `usr-${Date.now()}`,
-          name: cleanName,
-          email: cleanEmail,
-          role,
-          gender: existingAccount?.gender || "neutral"
-        };
-        setCurrentUser(session);
-        setCurrentUserState(session);
-        setCurrentUserEmail(cleanEmail);
-
-        window.history.replaceState({}, document.title, window.location.pathname);
-        window.dispatchEvent(new Event("projexa_session_change"));
+        const activeUser = getCurrentUser();
+        if (activeUser && activeUser.email.toLowerCase() === cleanEmail) {
+          switchActiveWorkspace(wsId);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          refreshWorkspaces();
+        } else {
+          setInviteParams({ email: cleanEmail, name: cleanName, role, workspaceId: wsId });
+          if (!activeUser) {
+            // Member will sign in or register through AuthCard
+          } else {
+            refreshWorkspaces();
+          }
+        }
       } else if (invEmail) {
         setInviteParams({ email: invEmail, name: invName, role: invRole, workspaceId: wsId });
       }
@@ -205,7 +203,30 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
       <WorkspaceNavbar currentUser={currentUser} onLogout={() => { logoutUser(); setCurrentUserState(null); setCurrentUserEmail(""); setUserWorkspaces([]); }} onRequestDeleteAccount={() => currentUser && setAccountToDelete(currentUser)} />
       {!currentUser ? (
         <div className="py-6 sm:py-10 max-w-4xl mx-auto">
-          <AuthCard inviteEmail={inviteParams.email} inviteName={inviteParams.name} inviteRole={inviteParams.role} onSuccess={(u) => { setCurrentUserState(u); setCurrentUserEmail(u.email); setUserWorkspaces(getWorkspacesForUser(u.email)); }} />
+          <AuthCard
+            inviteEmail={inviteParams.email}
+            inviteName={inviteParams.name}
+            inviteRole={inviteParams.role}
+            onSuccess={(u) => {
+              if (inviteParams.workspaceId) {
+                addMemberToWorkspace(inviteParams.workspaceId, {
+                  id: u.id,
+                  name: u.name,
+                  email: u.email.toLowerCase(),
+                  role: (inviteParams.role as WorkspaceMember["role"]) || "Developer",
+                  gender: u.gender || "neutral"
+                });
+                switchActiveWorkspace(inviteParams.workspaceId);
+              }
+              setCurrentUserState(u);
+              setCurrentUserEmail(u.email);
+              setUserWorkspaces(getWorkspacesForUser(u.email));
+              setInviteParams({});
+              if (typeof window !== "undefined") {
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            }}
+          />
         </div>
       ) : !isCreatingWorkspace ? (
         <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
@@ -228,14 +249,17 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
                   const isLead = Boolean(
                     currentUser && (
                       currentUser.email.toLowerCase() === ws.creatorEmail?.toLowerCase() ||
-                      currentUser.email.toLowerCase() === ws.teamLead?.email?.toLowerCase() ||
-                      currentUser.role === "Owner"
+                      currentUser.email.toLowerCase() === ws.teamLead?.email?.toLowerCase()
                     )
+                  );
+                  const memberRecord = ws.members?.find(
+                    (m) => m.email.toLowerCase() === currentUser?.email.toLowerCase()
                   );
                   return (
                     <WorkspaceCard
                       isTeamLead={isLead}
                       key={ws.id}
+                      memberRole={memberRecord?.role || "Developer"}
                       onAddMembers={(w) => setWorkspaceToManage(w)}
                       onOpenBoard={(id) => {
                         switchActiveWorkspace(id);

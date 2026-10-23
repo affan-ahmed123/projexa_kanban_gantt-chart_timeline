@@ -28,12 +28,14 @@ type AuthCardProps = Readonly<{
 export const AuthCard = ({
   initialMode = "login",
   onSuccess,
+  inviteEmail,
+  inviteName,
   inviteRole
 }: AuthCardProps): ReactElement => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [signupStep, setSignupStep] = useState<SignupStep>("form");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState(inviteEmail || "");
+  const [name, setName] = useState(inviteName || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
@@ -41,17 +43,21 @@ export const AuthCard = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
-  const [infoBanner, setInfoBanner] = useState<string | null>(null);
+  const [infoBanner, setInfoBanner] = useState<string | null>(
+    inviteEmail
+      ? `You have been invited as ${inviteRole || "a Team Member"}! Sign in with your registered account or create one.`
+      : null
+  );
 
   useEffect(() => {
-    setEmail("");
-    setName("");
-    setPassword("");
-    setVerificationCode("");
-    const t1 = setTimeout(() => { setEmail(""); setPassword(""); }, 100);
-    const t2 = setTimeout(() => { setEmail(""); setPassword(""); }, 350);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+    if (inviteEmail) {
+      setEmail(inviteEmail);
+      if (inviteName) setName(inviteName);
+      setInfoBanner(
+        `You have been invited as ${inviteRole || "a Team Member"}! Sign in with your registered account or create one.`
+      );
+    }
+  }, [inviteEmail, inviteName, inviteRole]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -153,7 +159,7 @@ export const AuthCard = ({
         return;
       }
       const detected = detectGender(name);
-      const assignedRole: WorkspaceMember["role"] = (inviteRole as WorkspaceMember["role"]) || "Owner";
+      const assignedRole: WorkspaceMember["role"] = (inviteRole as WorkspaceMember["role"]) || "Developer";
       const regRes = registerUser({
         name,
         email: cleanEmail,

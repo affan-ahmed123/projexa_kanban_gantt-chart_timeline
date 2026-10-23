@@ -37,8 +37,7 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
     currentUser &&
     workspace &&
     (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
-      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
-      currentUser.role === "Owner")
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
 
   const load = useCallback(async (): Promise<void> => {

@@ -10,6 +10,7 @@ type ViewHeaderUserMenuProps = Readonly<{
   currentUser: UserSession | null;
   workspace: Workspace | null;
   isCurrentLead: boolean;
+  activeRoleName?: string;
   onSelectUser: (session: UserSession) => void;
 }>;
 
@@ -17,6 +18,7 @@ export const ViewHeaderUserMenu = ({
   currentUser,
   workspace,
   isCurrentLead,
+  activeRoleName,
   onSelectUser
 }: ViewHeaderUserMenuProps): ReactElement => {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -53,7 +55,7 @@ export const ViewHeaderUserMenu = ({
           {currentUser?.name || "Select User"}
         </span>
         <span className="text-[10px] opacity-75 font-normal">
-          ({isCurrentLead ? "Team Lead" : currentUser?.role || "Member"})
+          ({activeRoleName || (isCurrentLead ? "Team Lead" : "Developer")})
         </span>
         <ChevronDown className="size-3 opacity-70 shrink-0" />
       </button>
@@ -187,7 +189,7 @@ export const ViewHeaderUserMenu = ({
                   </span>
                   <div className="mt-1 flex items-center gap-1.5">
                     <span className="inline-flex items-center rounded-md bg-cyan-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-300 border border-cyan-300/60 dark:border-cyan-700/60">
-                      Developer (Member)
+                      {activeRoleName || "Developer"} (Member)
                     </span>
                   </div>
                 </div>
@@ -201,7 +203,7 @@ export const ViewHeaderUserMenu = ({
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-200/60 dark:border-slate-700/40">
-                  You have Developer rights. You can progress and drag-and-drop your own assigned tasks.
+                  You have {activeRoleName || "Developer"} rights. You can progress and drag-and-drop your own assigned tasks.
                 </p>
               </div>
 

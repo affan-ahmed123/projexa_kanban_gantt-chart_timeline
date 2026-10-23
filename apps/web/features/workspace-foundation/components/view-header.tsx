@@ -90,9 +90,13 @@ export const ViewHeader = ({
     currentUser &&
     workspace &&
     (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
-      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
-      currentUser.role === "Owner")
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
+
+  const memberInWorkspace = workspace?.members?.find(
+    (m) => m.email.toLowerCase() === currentUser?.email.toLowerCase()
+  );
+  const activeRoleName = isCurrentLead ? "Team Lead" : (memberInWorkspace?.role || "Developer");
 
   const WsIcon = getWorkspaceIcon(workspace?.icon);
 
@@ -118,6 +122,7 @@ export const ViewHeader = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <ViewHeaderUserMenu
+            activeRoleName={activeRoleName}
             currentUser={currentUser}
             isCurrentLead={isCurrentLead}
             onSelectUser={handleSelectUser}

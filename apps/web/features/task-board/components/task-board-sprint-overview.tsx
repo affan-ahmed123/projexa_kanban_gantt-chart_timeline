@@ -9,6 +9,7 @@ type TaskBoardSprintOverviewProps = Readonly<{
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
   isTeamLead: boolean;
+  memberRole?: string;
   onOpenQuickAdd: () => void;
 }>;
 
@@ -17,6 +18,7 @@ export const TaskBoardSprintOverview = ({
   statusFilter,
   onStatusFilterChange,
   isTeamLead,
+  memberRole,
   onOpenQuickAdd
 }: TaskBoardSprintOverviewProps): ReactElement => {
   const completedCount = tasks.filter((t) => t.status === "done").length;
@@ -87,7 +89,7 @@ export const TaskBoardSprintOverview = ({
           ) : (
             <div className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
               <Lock className="size-3 text-amber-500" />
-              <span>Member Mode (Status Updates Only)</span>
+              <span>{memberRole || "Developer"} Mode (Status Updates Only)</span>
             </div>
           )}
         </div>

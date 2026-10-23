@@ -126,9 +126,13 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     currentUser &&
     workspace &&
     (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
-      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
-      currentUser.role === "Owner")
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
+
+  const memberInWorkspace = workspace?.members?.find(
+    (m) => m.email.toLowerCase() === currentUser?.email.toLowerCase()
+  );
+  const memberRole = isTeamLead ? "Team Lead" : (memberInWorkspace?.role || "Developer");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,7 +188,8 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     // Permissions: Leads have full control; Developers can ONLY move their own tasks
     const assignedClean = previous.assigneeId ? clean(previous.assigneeId).toLowerCase() : "";
     const isAssignedToMe = Boolean(
-      currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()
+      (currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()) ||
+      (currentUser?.email && previous.assigneeId && previous.assigneeId.toLowerCase() === currentUser.email.toLowerCase())
     );
     if (!isTeamLead && !isAssignedToMe) {
       showToast("Permission denied: You can only move tasks assigned to you.");
@@ -273,7 +278,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1.2px,transparent_1.2px)] [background-size:24px_24px] opacity-75 dark:bg-[radial-gradient(#1e293b_1.2px,transparent_1.2px)] dark:opacity-60" />
       </div>
       <ViewHeader activeView="board" description="Manage work items and track sprint delivery across stages." taskCount={tasks.length} title="Kanban Board" />
-      <TaskBoardSprintOverview isTeamLead={isTeamLead} onOpenQuickAdd={() => setQuickAddOpen(true)} onStatusFilterChange={setStatusFilter} statusFilter={statusFilter} tasks={tasks} />
+      <TaskBoardSprintOverview isTeamLead={isTeamLead} memberRole={memberRole} onOpenQuickAdd={() => setQuickAddOpen(true)} onStatusFilterChange={setStatusFilter} statusFilter={statusFilter} tasks={tasks} />
       {toastMessage && (
         <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur-md text-xs font-medium text-slate-800 dark:border-[#293d5c] dark:bg-[#182338] dark:text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /><span>{toastMessage}</span>

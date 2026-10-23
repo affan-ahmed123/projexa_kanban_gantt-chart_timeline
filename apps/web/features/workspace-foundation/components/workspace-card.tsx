@@ -9,6 +9,7 @@ import { getWorkspaceIcon } from "../workspace-foundation.constants";
 type WorkspaceCardProps = Readonly<{
   workspace: Workspace;
   isTeamLead?: boolean;
+  memberRole?: string;
   onOpenBoard: (workspaceId: string) => void;
   onAddMembers: (workspace: Workspace) => void;
   onRequestDelete: (workspace: Workspace) => void;
@@ -18,6 +19,7 @@ type WorkspaceCardProps = Readonly<{
 export const WorkspaceCard = ({
   workspace: ws,
   isTeamLead = false,
+  memberRole,
   onOpenBoard,
   onAddMembers,
   onRequestDelete,
@@ -42,7 +44,7 @@ export const WorkspaceCard = ({
                 <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">{ws.name}</h2>
                 {!isTeamLead && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100/90 dark:bg-cyan-950/90 px-2 py-0.5 text-[10px] font-semibold text-cyan-800 dark:text-cyan-300 border border-cyan-300/60 dark:border-cyan-700/60 shrink-0">
-                    <Lock className="size-2.5" /> Member
+                    <Lock className="size-2.5" /> {memberRole || "Member"}
                   </span>
                 )}
               </div>

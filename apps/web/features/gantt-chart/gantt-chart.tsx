@@ -53,8 +53,7 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
     currentUser &&
     workspace &&
     (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
-      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
-      currentUser.role === "Owner")
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
 
   const loadTasks = useCallback(async (): Promise<void> => {
