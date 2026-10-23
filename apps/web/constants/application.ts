@@ -1,4 +1,5 @@
 export const application = Object.freeze({
-  name: "Workspace",
-  description: "Production-ready web and API foundation"
+  name: "Projexa",
+  description: "Enterprise Multi-Tenant Agile Workspace & Sprint Platform"
 });
+

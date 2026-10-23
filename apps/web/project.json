@@ -4,7 +4,7 @@
   "description": "Primary Next.js web application.",
   "internalDependencies": ["eslint-config", "tsconfig", "ui"],
   "externalDependencies": ["lucide-react", "next", "react", "react-dom", "tailwindcss", "zod"],
-  "capabilities": ["web", "app-router", "shadcn-ui", "tailwind"],
+  "capabilities": ["web", "app-router", "kanban", "gantt-chart", "task-scheduling", "shadcn-ui", "tailwind"],
   "tasks": {
     "dev": { "command": "pnpm run dev", "cache": false },
     "build": { "command": "pnpm run build", "outputs": [".next"], "environment": ["NEXT_PUBLIC_API_BASE_URL"], "cache": true },

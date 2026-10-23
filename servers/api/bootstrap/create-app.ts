@@ -3,6 +3,8 @@ import { createHttpLogger, type Logger } from "@workspace/logging";
 import type { ApiConfig } from "../types/index.js";
 import { apiRuntime } from "../constants/index.js";
 import { createHealthRoutes } from "../features/health/index.js";
+import { createTaskRoutes } from "../features/tasks/index.js";
+import { createMongoTaskRepository } from "../integrations/mongodb/index.js";
 import { createCorsMiddleware, createErrorHandler, createNotFoundHandler } from "../middleware/index.js";
 
 type AppDependencies = Readonly<{ config: ApiConfig; logger: Logger }>;
@@ -14,11 +16,14 @@ export const createApp = ({ config, logger }: AppDependencies): Express => {
     logger,
     format: config.environment === "production" ? "combined" : "dev"
   }));
-  app.use(createCorsMiddleware({ origin: config.webOrigin }));
+  app.use(createCorsMiddleware({ origin: config.webOrigin, environment: config.environment }));
   app.use(express.json({ limit: apiRuntime.jsonBodyLimit }));
   const featureRouters = [createHealthRoutes({
     environment: config.environment,
     serviceName: apiRuntime.serviceName
+  }), createTaskRoutes({
+    repository: createMongoTaskRepository(),
+    persistenceAvailable: Boolean(config.mongodbUri)
   })];
   for (const featureRouter of featureRouters) app.use(featureRouter);
   app.use(createNotFoundHandler());
