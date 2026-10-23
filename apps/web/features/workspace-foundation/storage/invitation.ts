@@ -14,9 +14,20 @@ export type InvitationPayload = {
 export const createInvitationUrl = (workspace: Workspace, member: WorkspaceMember): string => {
   if (typeof window === "undefined") return "";
   const origin = window.location.origin;
-  return `${origin}/?workspaceId=${encodeURIComponent(workspace.id)}&inviteEmail=${encodeURIComponent(
-    member.email
-  )}&inviteName=${encodeURIComponent(member.name)}&role=${encodeURIComponent(member.role)}`;
+  const leadEmail = workspace.teamLead?.email || workspace.creatorEmail || "";
+  const leadName = workspace.teamLead?.name || "Team Lead";
+  const params = new URLSearchParams({
+    workspaceId: workspace.id,
+    wsName: workspace.name,
+    leadEmail,
+    leadName,
+    dept: workspace.department || "Software Engineering",
+    icon: workspace.icon || "rocket",
+    inviteEmail: member.email,
+    inviteName: member.name,
+    role: member.role
+  });
+  return `${origin}/?${params.toString()}`;
 };
 
 export const sendInvitationEmail = async (

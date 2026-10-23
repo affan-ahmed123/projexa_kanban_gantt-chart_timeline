@@ -208,10 +208,16 @@ export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMembe
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return null;
-    if (target.members.some((m) => m.email.toLowerCase() === member.email.toLowerCase())) {
-      return target;
+    const cleanEmail = member.email.toLowerCase();
+    const existingIndex = target.members.findIndex((m) => m.email.toLowerCase() === cleanEmail);
+    let updatedMembers: WorkspaceMember[];
+    if (existingIndex >= 0) {
+      updatedMembers = [...target.members];
+      updatedMembers[existingIndex] = { ...updatedMembers[existingIndex], ...member };
+    } else {
+      updatedMembers = [...target.members, member];
     }
-    const updated: Workspace = { ...target, members: [...target.members, member] };
+    const updated: Workspace = { ...target, members: updatedMembers };
     saveActiveWorkspace(updated);
     return updated;
   } catch (e) {

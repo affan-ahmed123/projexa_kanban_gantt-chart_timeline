@@ -41,7 +41,17 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [userWorkspaces, setUserWorkspaces] = useState<Workspace[]>([]);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
-  const [inviteParams, setInviteParams] = useState<{ email?: string | undefined; name?: string | undefined; role?: string | undefined; workspaceId?: string | undefined }>({});
+  const [inviteParams, setInviteParams] = useState<{
+    email?: string | undefined;
+    name?: string | undefined;
+    role?: string | undefined;
+    workspaceId?: string | undefined;
+    wsName?: string | undefined;
+    leadEmail?: string | undefined;
+    leadName?: string | undefined;
+    dept?: string | undefined;
+    icon?: string | undefined;
+  }>({});
 
   const [workspaceToManage, setWorkspaceToManage] = useState<Workspace | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
@@ -90,38 +100,82 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
     if (typeof window !== "undefined") {
       const search = window.location.search;
       const params = new URLSearchParams(search);
+      const wsId = params.get("workspaceId") || undefined;
+      const wsName = params.get("wsName") || undefined;
+      const leadEmail = params.get("leadEmail") || undefined;
+      const leadName = params.get("leadName") || undefined;
+      const dept = params.get("dept") || undefined;
+      const icon = params.get("icon") || undefined;
       const invEmail = params.get("inviteEmail") || undefined;
       const invName = params.get("inviteName") || undefined;
       const invRole = params.get("role") || undefined;
-      const wsId = params.get("workspaceId") || undefined;
 
-      if (invEmail && wsId) {
-        const cleanEmail = invEmail.trim().toLowerCase();
+      if (wsId) {
+        const cleanEmail = invEmail ? invEmail.trim().toLowerCase() : "";
         const registered = getRegisteredUsers();
-        const existingAccount = registered.find((u) => u.email.toLowerCase() === cleanEmail);
-        const cleanName = existingAccount?.name || (invName ? invName.trim() : cleanEmail.split("@")[0] || "Team Member");
+        const existingAccount = cleanEmail ? registered.find((u) => u.email.toLowerCase() === cleanEmail) : undefined;
+        const cleanName = existingAccount?.name || (invName ? invName.trim() : (cleanEmail ? cleanEmail.split("@")[0] : "Team Member")) || "Team Member";
         const role = (invRole as WorkspaceMember["role"]) || "Developer";
 
-        addMemberToWorkspace(wsId, {
-          id: existingAccount?.id || `mem-${Date.now()}`,
-          name: cleanName,
+        const allWorkspaces = getAllWorkspaces();
+        let targetWs = allWorkspaces.find((w) => w.id === wsId);
+
+        if (!targetWs && (wsName || leadEmail)) {
+          const cleanLeadEmail = (leadEmail || "lead@example.com").trim().toLowerCase();
+          const cleanLeadName = (leadName || "Team Lead").trim();
+          targetWs = {
+            id: wsId,
+            name: wsName || "Team Workspace",
+            slug: (wsName || "workspace").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            icon: icon || "rocket",
+            department: dept || "Software Engineering",
+            creatorEmail: cleanLeadEmail,
+            teamLead: { name: cleanLeadName, email: cleanLeadEmail, gender: "male" },
+            members: [
+              { id: "mem-lead", name: cleanLeadName, email: cleanLeadEmail, role: "Owner", gender: "male" },
+              ...(cleanEmail ? [{ id: existingAccount?.id || `mem-${Date.now()}`, name: cleanName, email: cleanEmail, role, gender: existingAccount?.gender || "neutral" }] : [])
+            ],
+            createdAt: new Date().toISOString()
+          };
+          saveActiveWorkspace(targetWs);
+          if (!getWorkspaceTasks(wsId)) {
+            saveWorkspaceTasks(wsId, []);
+          }
+        } else if (targetWs && cleanEmail) {
+          addMemberToWorkspace(wsId, {
+            id: existingAccount?.id || `mem-${Date.now()}`,
+            name: cleanName,
+            email: cleanEmail,
+            role,
+            gender: existingAccount?.gender || "neutral"
+          });
+        }
+
+        const pending = {
           email: cleanEmail,
+          name: cleanName,
           role,
-          gender: existingAccount?.gender || "neutral"
-        });
+          workspaceId: wsId,
+          wsName: wsName || targetWs?.name,
+          leadEmail: leadEmail || targetWs?.creatorEmail,
+          leadName: leadName || targetWs?.teamLead?.name,
+          dept: dept || targetWs?.department,
+          icon: icon || targetWs?.icon
+        };
+        setInviteParams(pending);
+        try {
+          sessionStorage.setItem("projexa_pending_invite", JSON.stringify(pending));
+        } catch {}
 
         const activeUser = getCurrentUser();
-        if (activeUser && activeUser.email.toLowerCase() === cleanEmail) {
+        if (activeUser && cleanEmail && activeUser.email.toLowerCase() === cleanEmail) {
           switchActiveWorkspace(wsId);
           window.history.replaceState({}, document.title, window.location.pathname);
           refreshWorkspaces();
+        } else if (!activeUser) {
+          // Member will sign in or register through AuthCard
         } else {
-          setInviteParams({ email: cleanEmail, name: cleanName, role, workspaceId: wsId });
-          if (!activeUser) {
-            // Member will sign in or register through AuthCard
-          } else {
-            refreshWorkspaces();
-          }
+          refreshWorkspaces();
         }
       } else if (invEmail) {
         setInviteParams({ email: invEmail, name: invName, role: invRole, workspaceId: wsId });
@@ -208,16 +262,56 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
             inviteName={inviteParams.name}
             inviteRole={inviteParams.role}
             onSuccess={(u) => {
-              if (inviteParams.workspaceId) {
-                addMemberToWorkspace(inviteParams.workspaceId, {
-                  id: u.id,
-                  name: u.name,
-                  email: u.email.toLowerCase(),
-                  role: (inviteParams.role as WorkspaceMember["role"]) || "Developer",
-                  gender: u.gender || "neutral"
-                });
-                switchActiveWorkspace(inviteParams.workspaceId);
+              let pending = inviteParams;
+              if (!pending.workspaceId && typeof window !== "undefined") {
+                try {
+                  const stored = sessionStorage.getItem("projexa_pending_invite");
+                  if (stored) pending = JSON.parse(stored);
+                } catch {}
               }
+
+              if (pending.workspaceId) {
+                const all = getAllWorkspaces();
+                let ws = all.find((w) => w.id === pending.workspaceId);
+                const role = (pending.role as WorkspaceMember["role"]) || "Developer";
+
+                if (!ws && (pending.wsName || pending.leadEmail)) {
+                  const cleanLeadEmail = (pending.leadEmail || "lead@example.com").trim().toLowerCase();
+                  const cleanLeadName = (pending.leadName || "Team Lead").trim();
+                  ws = {
+                    id: pending.workspaceId,
+                    name: pending.wsName || "Team Workspace",
+                    slug: (pending.wsName || "workspace").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+                    icon: pending.icon || "rocket",
+                    department: pending.dept || "Software Engineering",
+                    creatorEmail: cleanLeadEmail,
+                    teamLead: { name: cleanLeadName, email: cleanLeadEmail, gender: "male" },
+                    members: [
+                      { id: "mem-lead", name: cleanLeadName, email: cleanLeadEmail, role: "Owner", gender: "male" },
+                      { id: u.id, name: u.name, email: u.email.toLowerCase(), role, gender: u.gender || "neutral" }
+                    ],
+                    createdAt: new Date().toISOString()
+                  };
+                  saveActiveWorkspace(ws);
+                  if (!getWorkspaceTasks(pending.workspaceId)) {
+                    saveWorkspaceTasks(pending.workspaceId, []);
+                  }
+                } else if (ws) {
+                  addMemberToWorkspace(pending.workspaceId, {
+                    id: u.id,
+                    name: u.name,
+                    email: u.email.toLowerCase(),
+                    role,
+                    gender: u.gender || "neutral"
+                  });
+                }
+
+                switchActiveWorkspace(pending.workspaceId);
+                try {
+                  sessionStorage.removeItem("projexa_pending_invite");
+                } catch {}
+              }
+
               setCurrentUserState(u);
               setCurrentUserEmail(u.email);
               setUserWorkspaces(getWorkspacesForUser(u.email));

@@ -55,23 +55,52 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
       const inviteEmail = params.get("inviteEmail");
       const inviteName = params.get("inviteName");
       const inviteRole = (params.get("role") as WorkspaceMember["role"]) || "Developer";
+      const wsName = params.get("wsName");
+      const leadEmail = params.get("leadEmail");
+      const leadName = params.get("leadName");
+      const dept = params.get("dept");
+      const icon = params.get("icon");
 
-      if (inviteWsId && inviteEmail) {
-        const cleanEmail = inviteEmail.trim().toLowerCase();
+      if (inviteWsId && (inviteEmail || wsName)) {
+        const cleanEmail = inviteEmail ? inviteEmail.trim().toLowerCase() : "";
         const registered = getRegisteredUsers();
-        const existingAccount = registered.find((u) => u.email.toLowerCase() === cleanEmail);
-        const cleanName = existingAccount?.name || (inviteName ? inviteName.trim() : cleanEmail.split("@")[0] || "Team Member");
-        const targetWs = switchActiveWorkspace(inviteWsId);
-        setWorkspace(targetWs);
+        const existingAccount = cleanEmail ? registered.find((u) => u.email.toLowerCase() === cleanEmail) : undefined;
+        const cleanName = existingAccount?.name || (inviteName ? inviteName.trim() : (cleanEmail ? cleanEmail.split("@")[0] : "Team Member")) || "Team Member";
+        
+        let targetWs = getAllWorkspaces().find((w) => w.id === inviteWsId);
+        if (!targetWs && (wsName || leadEmail)) {
+          const cleanLeadEmail = (leadEmail || "lead@example.com").trim().toLowerCase();
+          const cleanLeadName = (leadName || "Team Lead").trim();
+          targetWs = {
+            id: inviteWsId,
+            name: wsName || "Team Workspace",
+            slug: (wsName || "workspace").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            icon: icon || "rocket",
+            department: dept || "Software Engineering",
+            creatorEmail: cleanLeadEmail,
+            teamLead: { name: cleanLeadName, email: cleanLeadEmail, gender: "male" },
+            members: [
+              { id: "mem-lead", name: cleanLeadName, email: cleanLeadEmail, role: "Owner", gender: "male" },
+              ...(cleanEmail ? [{ id: existingAccount?.id || `mem-${Date.now()}`, name: cleanName, email: cleanEmail, role: inviteRole, gender: existingAccount?.gender || "neutral" }] : [])
+            ],
+            createdAt: new Date().toISOString()
+          };
+          saveActiveWorkspace(targetWs);
+        } else if (inviteWsId) {
+          targetWs = switchActiveWorkspace(inviteWsId);
+        }
 
-        if (!targetWs.members.some((m) => m.email.toLowerCase() === cleanEmail)) {
-          addMemberToWorkspace(inviteWsId, {
-            id: existingAccount?.id || `mem-${Date.now()}`,
-            name: cleanName,
-            email: cleanEmail,
-            role: inviteRole,
-            gender: existingAccount?.gender || "neutral"
-          });
+        if (targetWs) {
+          setWorkspace(targetWs);
+          if (cleanEmail) {
+            addMemberToWorkspace(inviteWsId, {
+              id: existingAccount?.id || `mem-${Date.now()}`,
+              name: cleanName,
+              email: cleanEmail,
+              role: inviteRole,
+              gender: existingAccount?.gender || "neutral"
+            });
+          }
         }
         const session: UserSession = {
           id: existingAccount?.id || `usr-${Date.now()}`,
