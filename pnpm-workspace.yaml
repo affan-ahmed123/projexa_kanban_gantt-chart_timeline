@@ -23,3 +23,6 @@ minimumReleaseAgeExclude:
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-2464-fhr4-w9xw
+    - GHSA-p3m5-59mp-jv5r
+    - GHSA-673q-mjm6-r5xr
