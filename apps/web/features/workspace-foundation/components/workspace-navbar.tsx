@@ -2,8 +2,8 @@
 
 import { KanbanSquare, LogOut, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
-import type { UserSession } from "../workspace.model";
-import { getAvatarUrl } from "../utils/avatar";
+import type { UserSession } from "../workspace.service";
+import { getAvatarUrl } from "../utils/profile-avatar";
 import { ThemeToggle } from "./theme-toggle";
 
 type WorkspaceNavbarProps = Readonly<{

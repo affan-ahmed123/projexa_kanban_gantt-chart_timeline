@@ -1,5 +1,5 @@
 import type { Task, TaskStatus } from "@workspace/types";
-import { getResizedDates } from "./gantt-chart.model";
+import { getResizedDates } from "./gantt-chart.service";
 
 export type Gesture = Readonly<{
   task: Task;

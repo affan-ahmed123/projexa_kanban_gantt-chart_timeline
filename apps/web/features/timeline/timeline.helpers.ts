@@ -1,5 +1,5 @@
 import type { TaskStatus } from "@workspace/types";
-import type { GanttZoom } from "@/features/gantt-chart";
+import type { GanttZoom } from "@/features/gantt-chart/public";
 
 export const getTaskStyle = (status: TaskStatus, isLate: boolean) => {
   if (isLate) {

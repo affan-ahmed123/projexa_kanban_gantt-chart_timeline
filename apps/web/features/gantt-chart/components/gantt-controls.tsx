@@ -2,7 +2,7 @@
 
 import { CalendarDays } from "lucide-react";
 import type { ReactElement } from "react";
-import type { GanttZoom } from "../gantt-chart.model";
+import type { GanttZoom } from "../gantt-chart.service";
 
 type GanttControlsProps = Readonly<{
   zoom: GanttZoom;

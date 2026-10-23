@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
-import type { UserSession } from "../workspace.model";
+import type { UserSession } from "../workspace.service";
 
 type AccountDeleteModalProps = Readonly<{
   account: UserSession | null;

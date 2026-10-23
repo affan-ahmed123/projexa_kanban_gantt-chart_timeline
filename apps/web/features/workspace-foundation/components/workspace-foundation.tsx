@@ -21,7 +21,7 @@ import {
   type Workspace,
   type WorkspaceMember,
   type UserSession
-} from "../workspace.model";
+} from "../workspace.service";
 import { WorkspaceNavbar } from "./workspace-navbar";
 import { WorkspaceCard } from "./workspace-card";
 import { WorkspaceEmptyState } from "./workspace-empty-state";

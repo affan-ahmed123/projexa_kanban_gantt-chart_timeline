@@ -5,11 +5,11 @@ import {
   DEFAULT_LEAD,
   getAllWorkspaces,
   getWorkspacesForUser
-} from "../../features/workspace-foundation/models/workspace-storage";
+} from "../../features/workspace-foundation/storage/workspace-storage";
 import {
   getRegisteredUsers,
   getCurrentUser
-} from "../../features/workspace-foundation/models/auth-storage";
+} from "../../features/workspace-foundation/storage/auth-storage";
 
 test("workspace-storage returns empty structures gracefully outside browser", () => {
   assert.equal(EMPTY_WORKSPACE.id, "");

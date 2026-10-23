@@ -1,5 +1,5 @@
 export { WorkspaceFoundation, ViewHeader, ThemeToggle, InviteModal, AuthCard } from "./components";
-export { getAvatarColor, detectGender, getAvatarUrl, getInitials } from "./utils/avatar";
+export { getAvatarColor, detectGender, getAvatarUrl, getInitials } from "./utils/profile-avatar";
 export {
   getActiveWorkspace,
   saveActiveWorkspace,
@@ -23,6 +23,6 @@ export {
   DEFAULT_WORKSPACE,
   DEFAULT_LEAD,
   DEFAULT_STARTER_TASKS
-} from "./workspace.model";
-export type { Gender } from "./utils/avatar";
-export type { Workspace, WorkspaceMember, UserSession, StoredUser, InvitationPayload } from "./workspace.model";
+} from "./workspace.service";
+export type { Gender } from "./utils/profile-avatar";
+export type { Workspace, WorkspaceMember, UserSession, StoredUser, InvitationPayload } from "./workspace.service";

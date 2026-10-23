@@ -2,7 +2,7 @@
 
 import { Calendar } from "lucide-react";
 import type { ReactElement } from "react";
-import type { GanttZoom } from "@/features/gantt-chart";
+import type { GanttZoom } from "@/features/gantt-chart/public";
 import { zoomLevels } from "../timeline.helpers";
 
 type TimelineToolbarProps = Readonly<{

@@ -1,5 +1,5 @@
 export { Timeline } from "./timeline";
-export type { Person, PersonRow, PersonWorkload, WorkloadDay } from "./timeline.model";
+export type { Person, PersonRow, PersonWorkload, WorkloadDay } from "./timeline.service";
 export {
   calculateAllWorkloads,
   calculateWorkload,
@@ -10,5 +10,5 @@ export {
   isTaskActiveOnDay,
   sortTasksByDate,
   stackOverlappingTasks
-} from "./timeline.model";
+} from "./timeline.service";
 

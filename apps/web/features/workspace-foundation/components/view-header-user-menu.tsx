@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Check, ChevronDown, Crown, User } from "lucide-react";
-import type { UserSession, Workspace } from "../workspace.model";
-import { getAvatarUrl } from "../utils/avatar";
+import type { UserSession, Workspace } from "../workspace.service";
+import { getAvatarUrl } from "../utils/profile-avatar";
 import { ViewHeaderCustomUser } from "./view-header-custom-user";
 
 type ViewHeaderUserMenuProps = Readonly<{

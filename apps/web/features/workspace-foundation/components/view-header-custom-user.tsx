@@ -2,7 +2,7 @@
 
 import { LogOut, Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent, type ReactElement } from "react";
-import { deleteUserAccount, logoutUser, type UserSession, type Workspace } from "../workspace.model";
+import { deleteUserAccount, logoutUser, type UserSession, type Workspace } from "../workspace.service";
 
 type ViewHeaderCustomUserProps = Readonly<{
   currentUser: UserSession | null;

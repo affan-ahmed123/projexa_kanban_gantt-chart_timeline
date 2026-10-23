@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
-import type { Workspace } from "../workspace.model";
+import type { Workspace } from "../workspace.service";
 
 type WorkspaceDeleteModalProps = Readonly<{
   workspace: Workspace | null;

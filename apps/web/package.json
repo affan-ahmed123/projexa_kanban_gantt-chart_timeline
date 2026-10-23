@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx --test tests/environment.test.ts tests/features/avatar.test.ts tests/features/gantt-chart.model.test.ts tests/features/gantt-chart.helpers.test.ts tests/features/timeline.model.test.ts tests/features/workspace-storage.test.ts tests/features/invitation.test.ts tests/features/task-board.helpers.test.ts tests/integration/home-page.test.tsx tests/integration/board-page.test.tsx tests/integration/gantt-page.test.tsx tests/integration/timeline-page.test.tsx tests/integration/tasks-api.test.ts",
+    "test": "tsx --test tests/environment.test.ts tests/unit/avatar.test.ts tests/unit/gantt-chart.model.test.ts tests/unit/gantt-chart.helpers.test.ts tests/unit/timeline.model.test.ts tests/unit/workspace-storage.test.ts tests/unit/invitation.test.ts tests/unit/task-board.helpers.test.ts tests/integration/home-page.test.tsx tests/integration/board-page.test.tsx tests/integration/gantt-page.test.tsx tests/integration/timeline-page.test.tsx tests/integration/tasks-api.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

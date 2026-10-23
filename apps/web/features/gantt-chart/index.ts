@@ -7,6 +7,6 @@ export {
   getResizedDates,
   getTaskBarLayout,
   toUtcDay
-} from "./gantt-chart.model";
-export type { GanttZoom, MonthGroup, GanttWindow, GanttTick, TaskBarLayout } from "./gantt-chart.model";
+} from "./gantt-chart.service";
+export type { GanttZoom, MonthGroup, GanttWindow, GanttTick, TaskBarLayout } from "./gantt-chart.service";
 

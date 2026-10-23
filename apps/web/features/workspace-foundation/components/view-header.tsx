@@ -24,7 +24,7 @@ import {
   setCurrentUser,
   type UserSession,
   type Workspace
-} from "../workspace.model";
+} from "../workspace.service";
 import { ViewHeaderUserMenu } from "./view-header-user-menu";
 
 type ViewName = "board" | "gantt" | "timeline";

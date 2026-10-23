@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Crown, Sparkles } from "lucide-react";
 import type { FormEvent, ReactElement } from "react";
-import type { WorkspaceMember } from "../workspace.model";
+import type { WorkspaceMember } from "../workspace.service";
 import { DEPARTMENTS, PRESET_ICONS, getWorkspaceIcon } from "../workspace-foundation.constants";
 import { WizardMemberSection } from "./wizard-member-section";
 

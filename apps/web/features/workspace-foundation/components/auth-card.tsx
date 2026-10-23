@@ -8,8 +8,8 @@ import {
   registerUser,
   type UserSession,
   type WorkspaceMember
-} from "../workspace.model";
-import { detectGender } from "../utils/avatar";
+} from "../workspace.service";
+import { detectGender } from "../utils/profile-avatar";
 import { LoginForm } from "./auth/login-form";
 import { SignupForm } from "./auth/signup-form";
 import { VerifyCodeForm } from "./auth/verify-code-form";

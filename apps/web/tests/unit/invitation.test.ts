@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInvitationUrl } from "../../features/workspace-foundation/models/invitation";
-import type { Workspace, WorkspaceMember } from "../../features/workspace-foundation/models/workspace-storage";
+import { createInvitationUrl } from "../../features/workspace-foundation/storage/invitation";
+import type { Workspace, WorkspaceMember } from "../../features/workspace-foundation/storage/workspace-storage";
 
 test("createInvitationUrl returns empty string in non-browser environment", () => {
   const dummyWs: Workspace = {

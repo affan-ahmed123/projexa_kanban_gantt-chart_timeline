@@ -2,8 +2,8 @@
 
 import { ArrowRight, Crown, Mail, Trash2, UserPlus } from "lucide-react";
 import type { ReactElement } from "react";
-import type { Workspace } from "../workspace.model";
-import { getAvatarUrl } from "../utils/avatar";
+import type { Workspace } from "../workspace.service";
+import { getAvatarUrl } from "../utils/profile-avatar";
 import { getWorkspaceIcon } from "../workspace-foundation.constants";
 
 type WorkspaceCardProps = Readonly<{

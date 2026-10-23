@@ -3,7 +3,7 @@
 import type { Task } from "@workspace/types";
 import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactElement } from "react";
 import { dateLabel, getTaskStyle, ROW_HEIGHT, TASK_STATUS_CLASSES, type Gesture } from "../gantt-chart.helpers";
-import { toUtcDay, type GanttWindow } from "../gantt-chart.model";
+import { toUtcDay, type GanttWindow } from "../gantt-chart.service";
 
 type GanttTaskBarProps = Readonly<{
   task: Task;

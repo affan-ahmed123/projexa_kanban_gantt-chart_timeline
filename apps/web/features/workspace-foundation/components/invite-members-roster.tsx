@@ -2,8 +2,8 @@
 
 import { Crown, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
-import type { WorkspaceMember } from "../workspace.model";
-import { getAvatarUrl } from "../utils/avatar";
+import type { WorkspaceMember } from "../workspace.service";
+import { getAvatarUrl } from "../utils/profile-avatar";
 
 type InviteMembersRosterProps = Readonly<{
   membersList: readonly WorkspaceMember[];

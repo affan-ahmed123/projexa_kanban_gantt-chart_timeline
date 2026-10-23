@@ -3,7 +3,7 @@
 import type { Task, TaskStatus } from "@workspace/types";
 import { Calendar, Link2, Lock, Trash2 } from "lucide-react";
 import { useState, type ReactElement } from "react";
-import { getAvatarUrl } from "@/features/workspace-foundation";
+import { getAvatarUrl } from "@/features/workspace-foundation/public";
 import { clean, formatDate, isOverdue, statusBadgeConfig } from "../task-board.helpers";
 
 type TaskCardProps = Readonly<{

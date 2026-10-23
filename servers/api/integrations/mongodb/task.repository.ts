@@ -1,5 +1,5 @@
 import type { CreateTaskInput, Task, UpdateTaskInput } from "@workspace/types";
-import type { TaskRepository } from "../../features/tasks/task.repository.js";
+import type { TaskRepository } from "../../features/tasks/index.js";
 import { TaskModel, type StoredTask } from "./task.model.js";
 
 type TaskDocument = StoredTask & Readonly<{

@@ -4,7 +4,7 @@ import {
   toUtcDay,
   type GanttWindow,
   type TaskBarLayout
-} from "@/features/gantt-chart";
+} from "@/features/gantt-chart/public";
 
 export type Person = Readonly<{
   id: string;

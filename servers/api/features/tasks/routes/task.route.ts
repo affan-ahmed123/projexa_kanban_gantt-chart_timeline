@@ -1,7 +1,7 @@
 import { Router } from "express";
-import type { TaskRepository } from "./task.repository.js";
-import { createTaskService } from "./task.service.js";
-import { createTaskController } from "./task.controller.js";
+import type { TaskRepository } from "../task.repository.js";
+import { createTaskService } from "../task.service.js";
+import { createTaskController } from "../task.controller.js";
 
 export type TaskRouteDependencies = Readonly<{
   repository: TaskRepository;

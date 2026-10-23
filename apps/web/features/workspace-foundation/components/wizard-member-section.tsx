@@ -2,8 +2,8 @@
 
 import { Trash2, Users } from "lucide-react";
 import type { FormEvent, ReactElement } from "react";
-import type { WorkspaceMember } from "../workspace.model";
-import { getAvatarUrl } from "../utils/avatar";
+import type { WorkspaceMember } from "../workspace.service";
+import { getAvatarUrl } from "../utils/profile-avatar";
 
 type WizardMemberSectionProps = Readonly<{
   members: WorkspaceMember[];

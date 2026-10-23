@@ -15,8 +15,8 @@ import {
   type UserSession,
   type Workspace,
   type WorkspaceMember
-} from "@/features/workspace-foundation";
-import { createTasksApi } from "@/features/tasks";
+} from "@/features/workspace-foundation/public";
+import { createTasksApi } from "@/features/tasks/public";
 import { clean, columns } from "./task-board.helpers";
 import { TaskBoardColumn } from "./components/task-board-column";
 import { TaskBoardFilterBar } from "./components/task-board-filter-bar";

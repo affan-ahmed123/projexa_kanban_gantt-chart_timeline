@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { Logger } from "@workspace/logging";
 import type { CreateTaskInput, Task, UpdateTaskInput } from "@workspace/types";
 import express from "express";
-import { createTaskRoutes } from "../task.route.js";
+import { createTaskRoutes } from "../routes/index.js";
 import type { TaskRepository } from "../task.repository.js";
 import { createErrorHandler } from "../../../middleware/errors.js";
 

@@ -3,10 +3,10 @@
 import type { Task, UpdateTaskInput } from "@workspace/types";
 import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type ReactElement } from "react";
-import { ViewHeader } from "@/features/workspace-foundation";
-import { createTasksApi } from "@/features/tasks";
-import { createGanttTicks, createGanttWindow, createMonthGroups, toUtcDay, type GanttZoom } from "@/features/gantt-chart";
-import { calculateAllWorkloads, groupTasksByAssignee } from "./timeline.model";
+import { ViewHeader } from "@/features/workspace-foundation/public";
+import { createTasksApi } from "@/features/tasks/public";
+import { createGanttTicks, createGanttWindow, createMonthGroups, toUtcDay, type GanttZoom } from "@/features/gantt-chart/public";
+import { calculateAllWorkloads, groupTasksByAssignee } from "./timeline.service";
 import { TimelineToolbar } from "./components/timeline-toolbar";
 import { TimelinePersonRow } from "./components/timeline-person-row";
 

@@ -3,7 +3,7 @@
 import type { TaskStatus } from "@workspace/types";
 import { X } from "lucide-react";
 import { useState, type FormEvent, type ReactElement } from "react";
-import type { WorkspaceMember } from "@/features/workspace-foundation";
+import type { WorkspaceMember } from "@/features/workspace-foundation/public";
 
 type TaskFormModalProps = Readonly<{
   status: TaskStatus;

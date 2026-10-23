@@ -9,7 +9,7 @@ import {
   sendInvitationEmail,
   type Workspace,
   type WorkspaceMember
-} from "../workspace.model";
+} from "../workspace.service";
 import { InviteMembersRoster } from "./invite-members-roster";
 
 type InviteModalProps = Readonly<{

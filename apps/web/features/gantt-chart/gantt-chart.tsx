@@ -3,8 +3,8 @@
 import type { ScheduledTaskConflict, Task, UpdateTaskInput } from "@workspace/types";
 import { LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { ViewHeader } from "@/features/workspace-foundation";
-import { createTasksApi } from "@/features/tasks";
+import { ViewHeader } from "@/features/workspace-foundation/public";
+import { createTasksApi } from "@/features/tasks/public";
 import {
   createGanttTicks,
   createGanttWindow,
@@ -13,7 +13,7 @@ import {
   getTaskBarLayout,
   toUtcDay,
   type GanttZoom
-} from "./gantt-chart.model";
+} from "./gantt-chart.service";
 import {
   getPreviewDates,
   mergeUpdatedTasks,

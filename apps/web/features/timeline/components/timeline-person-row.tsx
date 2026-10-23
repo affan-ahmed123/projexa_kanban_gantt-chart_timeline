@@ -2,9 +2,9 @@
 
 import type { Task } from "@workspace/types";
 import { Fragment, type DragEvent as ReactDragEvent, type ReactElement } from "react";
-import { getAvatarColor } from "@/features/workspace-foundation";
-import { toUtcDay, type GanttWindow, type GanttTick } from "@/features/gantt-chart";
-import { getStackedTaskBarLayout, stackOverlappingTasks, type PersonRow, type PersonWorkload } from "../timeline.model";
+import { getAvatarColor } from "@/features/workspace-foundation/public";
+import { toUtcDay, type GanttWindow, type GanttTick } from "@/features/gantt-chart/public";
+import { getStackedTaskBarLayout, stackOverlappingTasks, type PersonRow, type PersonWorkload } from "../timeline.service";
 import { dateLabel, getTaskStyle, TASK_STATUS_CLASSES } from "../timeline.helpers";
 
 type TimelinePersonRowProps = Readonly<{
