@@ -101,13 +101,24 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         setTasks(localTasks);
       }
     };
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key.includes("projexa_tasks") || e.key.includes("nutsyll_tasks")) {
+        const ws = getActiveWorkspace();
+        const localTasks = getWorkspaceTasks(ws.id);
+        if (localTasks) {
+          setTasks(localTasks);
+        }
+      }
+    };
     window.addEventListener("projexa_session_change", handleSessionChange);
     window.addEventListener("projexa_tasks_change", handleTasksChange);
     window.addEventListener("nutsyll_tasks_change", handleTasksChange);
+    window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("projexa_session_change", handleSessionChange);
       window.removeEventListener("projexa_tasks_change", handleTasksChange);
       window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [showToast]);
 

@@ -14,7 +14,7 @@ export type InvitationPayload = {
 export const createInvitationUrl = (workspace: Workspace, member: WorkspaceMember): string => {
   if (typeof window === "undefined") return "";
   const origin = window.location.origin;
-  return `${origin}/board?workspaceId=${encodeURIComponent(workspace.id)}&inviteEmail=${encodeURIComponent(
+  return `${origin}/?workspaceId=${encodeURIComponent(workspace.id)}&inviteEmail=${encodeURIComponent(
     member.email
   )}&inviteName=${encodeURIComponent(member.name)}&role=${encodeURIComponent(member.role)}`;
 };

@@ -9,6 +9,7 @@ export {
   deleteWorkspace,
   addMemberToWorkspace,
   removeMemberFromWorkspace,
+  leaveWorkspace,
   createInvitationUrl,
   sendInvitationEmail,
   getCurrentUser,

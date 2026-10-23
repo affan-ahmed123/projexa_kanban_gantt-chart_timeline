@@ -220,17 +220,40 @@ export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMembe
   }
 };
 
-export const removeMemberFromWorkspace = (workspaceId: string, memberId: string): Workspace | null => {
+export const removeMemberFromWorkspace = (workspaceId: string, memberIdOrEmail: string): Workspace | null => {
   if (typeof window === "undefined") return null;
   try {
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return null;
-    const updated: Workspace = { ...target, members: target.members.filter((m) => m.id !== memberId) };
+    const cleanParam = memberIdOrEmail.toLowerCase();
+    const updated: Workspace = {
+      ...target,
+      members: target.members.filter((m) => m.id !== memberIdOrEmail && m.email.toLowerCase() !== cleanParam)
+    };
     saveActiveWorkspace(updated);
     return updated;
   } catch (e) {
     console.error("Failed to remove member from workspace", e);
     return null;
+  }
+};
+
+export const leaveWorkspace = (workspaceId: string, memberEmail: string): void => {
+  if (typeof window === "undefined") return;
+  try {
+    removeMemberFromWorkspace(workspaceId, memberEmail);
+    const active = getActiveWorkspace();
+    if (active.id === workspaceId) {
+      const remainingForUser = getWorkspacesForUser(memberEmail);
+      if (remainingForUser.length > 0 && remainingForUser[0]) {
+        saveActiveWorkspace(remainingForUser[0]);
+      } else {
+        localStorage.removeItem("projexa_active_workspace");
+      }
+    }
+    window.dispatchEvent(new Event("projexa_session_change"));
+  } catch (e) {
+    console.error("Failed to leave workspace", e);
   }
 };

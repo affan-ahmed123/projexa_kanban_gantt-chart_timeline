@@ -7,11 +7,14 @@ import { ApiBoundary } from "./api-boundary";
 import { InviteModal } from "./invite-modal";
 import { AuthCard } from "./auth-card";
 import {
+  addMemberToWorkspace,
   createInvitationUrl,
   deleteWorkspace,
   deleteUserAccount,
   getCurrentUser,
+  getRegisteredUsers,
   getWorkspacesForUser,
+  leaveWorkspace,
   logoutUser,
   saveActiveWorkspace,
   saveWorkspaceTasks,
@@ -26,6 +29,7 @@ import { WorkspaceNavbar } from "./workspace-navbar";
 import { WorkspaceCard } from "./workspace-card";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspaceDeleteModal } from "./workspace-delete-modal";
+import { WorkspaceLeaveModal } from "./workspace-leave-modal";
 import { AccountDeleteModal } from "./account-delete-modal";
 import { WorkspaceWizardModal } from "./workspace-wizard-modal";
 
@@ -41,6 +45,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
 
   const [workspaceToManage, setWorkspaceToManage] = useState<Workspace | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
+  const [workspaceToLeave, setWorkspaceToLeave] = useState<Workspace | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<UserSession | null>(null);
 
   const [name, setName] = useState("");
@@ -89,7 +94,40 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
       const invName = params.get("inviteName") || undefined;
       const invRole = params.get("role") || undefined;
       const wsId = params.get("workspaceId") || undefined;
-      if (invEmail) setInviteParams({ email: invEmail, name: invName, role: invRole, workspaceId: wsId });
+
+      if (invEmail && wsId) {
+        const cleanEmail = invEmail.trim().toLowerCase();
+        const registered = getRegisteredUsers();
+        const existingAccount = registered.find((u) => u.email.toLowerCase() === cleanEmail);
+        const cleanName = existingAccount?.name || (invName ? invName.trim() : cleanEmail.split("@")[0] || "Team Member");
+        const role = (invRole as WorkspaceMember["role"]) || "Developer";
+
+        addMemberToWorkspace(wsId, {
+          id: existingAccount?.id || `mem-${Date.now()}`,
+          name: cleanName,
+          email: cleanEmail,
+          role,
+          gender: existingAccount?.gender || "neutral"
+        });
+
+        switchActiveWorkspace(wsId);
+
+        const session: UserSession = {
+          id: existingAccount?.id || `usr-${Date.now()}`,
+          name: cleanName,
+          email: cleanEmail,
+          role,
+          gender: existingAccount?.gender || "neutral"
+        };
+        setCurrentUser(session);
+        setCurrentUserState(session);
+        setCurrentUserEmail(cleanEmail);
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+        window.dispatchEvent(new Event("projexa_session_change"));
+      } else if (invEmail) {
+        setInviteParams({ email: invEmail, name: invName, role: invRole, workspaceId: wsId });
+      }
       if (window.location.hash.includes("create") || search.includes("create=true")) handleOpenCreateWorkspace();
     }
     const handleSessionChange = () => refreshWorkspaces();
@@ -186,9 +224,29 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {userWorkspaces.map((ws) => (
-                  <WorkspaceCard key={ws.id} onAddMembers={(w) => setWorkspaceToManage(w)} onOpenBoard={(id) => { switchActiveWorkspace(id); if (typeof window !== "undefined") window.location.href = "/board"; }} onRequestDelete={(w) => setWorkspaceToDelete(w)} workspace={ws} />
-                ))}
+                {userWorkspaces.map((ws) => {
+                  const isLead = Boolean(
+                    currentUser && (
+                      currentUser.email.toLowerCase() === ws.creatorEmail?.toLowerCase() ||
+                      currentUser.email.toLowerCase() === ws.teamLead?.email?.toLowerCase() ||
+                      currentUser.role === "Owner"
+                    )
+                  );
+                  return (
+                    <WorkspaceCard
+                      isTeamLead={isLead}
+                      key={ws.id}
+                      onAddMembers={(w) => setWorkspaceToManage(w)}
+                      onOpenBoard={(id) => {
+                        switchActiveWorkspace(id);
+                        if (typeof window !== "undefined") window.location.href = "/board";
+                      }}
+                      onRequestDelete={(w) => setWorkspaceToDelete(w)}
+                      onRequestLeave={(w) => setWorkspaceToLeave(w)}
+                      workspace={ws}
+                    />
+                  );
+                })}
               </div>
             </>
           ) : (
@@ -200,6 +258,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
       )}
       {workspaceToManage && <InviteModal currentUserEmail={currentUserEmail} currentUserName={teamLeadName} isOpen={true} onClose={() => setWorkspaceToManage(null)} onMemberAdded={(up) => { refreshWorkspaces(); setWorkspaceToManage(up); }} workspace={workspaceToManage} />}
       <WorkspaceDeleteModal onClose={() => setWorkspaceToDelete(null)} onConfirmDelete={() => { if (workspaceToDelete) { deleteWorkspace(workspaceToDelete.id); setWorkspaceToDelete(null); refreshWorkspaces(); } }} workspace={workspaceToDelete} />
+      <WorkspaceLeaveModal onClose={() => setWorkspaceToLeave(null)} onConfirmLeave={() => { if (workspaceToLeave && currentUser) { leaveWorkspace(workspaceToLeave.id, currentUser.email); setWorkspaceToLeave(null); refreshWorkspaces(); } }} workspace={workspaceToLeave} />
       <AccountDeleteModal account={accountToDelete} onClose={() => setAccountToDelete(null)} onConfirmDelete={(email) => { deleteUserAccount(email); setAccountToDelete(null); setCurrentUserState(null); setCurrentUserEmail(""); setUserWorkspaces([]); }} />
       {apiBaseUrl && <ApiBoundary baseUrl={apiBaseUrl} />}
     </main>

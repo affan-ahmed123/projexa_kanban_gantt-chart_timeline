@@ -99,13 +99,24 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
         setTasks(local.map(normalizeTaskDates));
       }
     };
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key.includes("projexa_tasks") || e.key.includes("nutsyll_tasks")) {
+        const ws = getActiveWorkspace();
+        const local = getWorkspaceTasks(ws.id);
+        if (local && local.length > 0) {
+          setTasks(local.map(normalizeTaskDates));
+        }
+      }
+    };
     window.addEventListener("projexa_session_change", handleSession);
     window.addEventListener("projexa_tasks_change", handleTasksChange);
     window.addEventListener("nutsyll_tasks_change", handleTasksChange);
+    window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("projexa_session_change", handleSession);
       window.removeEventListener("projexa_tasks_change", handleTasksChange);
       window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
+      window.removeEventListener("storage", handleStorage);
     };
   }, []);
 
@@ -147,23 +158,19 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
   };
 
   const createDependency = async (predecessor: string, dependent: Task): Promise<void> => {
-    if (predecessor === dependent.id || dependent.dependsOn.includes(predecessor)) return;
     if (!isTeamLead) {
       setError("Permission denied: Only Team Leads can configure task dependencies.");
       setTimeout(() => setError(null), 3000);
       return;
     }
+    if (predecessor === dependent.id || dependent.dependsOn.includes(predecessor)) return;
     await commitUpdate(dependent.id, { dependsOn: [...dependent.dependsOn, predecessor] });
   };
 
   const beginGesture = (e: ReactPointerEvent<HTMLButtonElement>, task: Task, mode: Gesture["mode"]): void => {
     if (!task.startDate || !task.dueDate || savingTaskIds.has(task.id)) return;
-    const assignedClean = task.assigneeId ? task.assigneeId.split("::")[0]?.trim().toLowerCase() : "";
-    const isAssignedToMe = Boolean(
-      currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()
-    );
-    if (!isTeamLead && !isAssignedToMe) {
-      setError("Permission denied: You can only adjust dates for tasks assigned to you.");
+    if (!isTeamLead) {
+      setError("Permission denied: Only Team Leads can change task schedules in Gantt Chart.");
       setTimeout(() => setError(null), 3000);
       return;
     }
@@ -269,6 +276,7 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
                       return (
                         <GanttTaskBar
                           dates={dates}
+                          isTeamLead={isTeamLead}
                           key={task.id}
                           layout={preview}
                           onBeginGesture={beginGesture}

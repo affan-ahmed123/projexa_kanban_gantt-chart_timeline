@@ -10,6 +10,7 @@ type GanttTaskBarProps = Readonly<{
   row: number;
   layout: Readonly<{ left: number; width: number }>;
   dates: Readonly<{ startDate: string; dueDate: string }>;
+  isTeamLead?: boolean;
   onBeginGesture: (event: ReactPointerEvent<HTMLButtonElement>, task: Task, mode: Gesture["mode"]) => void;
   onDragSource: (event: ReactDragEvent<HTMLButtonElement>, task: Task) => void;
   onDropDependency: (event: ReactDragEvent<HTMLButtonElement>, task: Task) => void;
@@ -20,6 +21,7 @@ export const GanttTaskBar = ({
   row,
   layout,
   dates,
+  isTeamLead = false,
   onBeginGesture,
   onDragSource,
   onDropDependency
@@ -35,11 +37,15 @@ export const GanttTaskBar = ({
       style={{ left: layout.left, top: row * ROW_HEIGHT + 14, width: layout.width }}
     >
       <button
-        aria-label={`Move ${task.title}`}
-        className={`absolute inset-0 cursor-grab rounded-lg text-left text-xs font-medium shadow-2xs active:cursor-grabbing ${TASK_STATUS_CLASSES[task.status]} ${
+        aria-label={isTeamLead ? `Move ${task.title}` : task.title}
+        className={`absolute inset-0 rounded-lg text-left text-xs font-medium shadow-2xs ${
+          isTeamLead ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+        } ${TASK_STATUS_CLASSES[task.status]} ${
           isLate ? "border-2 border-rose-500" : ""
         }`}
-        onPointerDown={(event) => onBeginGesture(event, task, "move")}
+        onPointerDown={(event) => {
+          if (isTeamLead) onBeginGesture(event, task, "move");
+        }}
         style={getTaskStyle(task.status, isLate)}
         title={`${task.title}: ${dateLabel(dates.startDate)} – ${dateLabel(dates.dueDate)}`}
         type="button"
@@ -52,37 +58,41 @@ export const GanttTaskBar = ({
         </div>
       </button>
 
-      <button
-        aria-label={`Resize ${task.title} start`}
-        className="absolute -left-1 top-0 z-10 h-7 w-2 cursor-ew-resize rounded-l bg-white/70 dark:bg-slate-700/70 touch-none hover:bg-white"
-        onPointerDown={(event) => onBeginGesture(event, task, "start")}
-        type="button"
-      />
+      {isTeamLead && (
+        <>
+          <button
+            aria-label={`Resize ${task.title} start`}
+            className="absolute -left-1 top-0 z-10 h-7 w-2 cursor-ew-resize rounded-l bg-white/70 dark:bg-slate-700/70 touch-none hover:bg-white"
+            onPointerDown={(event) => onBeginGesture(event, task, "start")}
+            type="button"
+          />
 
-      <button
-        aria-label={`Resize ${task.title} end`}
-        className="absolute -right-1 top-0 z-10 h-7 w-2 cursor-ew-resize rounded-r bg-white/70 dark:bg-slate-700/70 touch-none hover:bg-white"
-        onPointerDown={(event) => onBeginGesture(event, task, "end")}
-        type="button"
-      />
+          <button
+            aria-label={`Resize ${task.title} end`}
+            className="absolute -right-1 top-0 z-10 h-7 w-2 cursor-ew-resize rounded-r bg-white/70 dark:bg-slate-700/70 touch-none hover:bg-white"
+            onPointerDown={(event) => onBeginGesture(event, task, "end")}
+            type="button"
+          />
 
-      <button
-        aria-label={`Create dependency from ${task.title}`}
-        className="absolute -right-2 top-1/2 z-40 size-3 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white bg-slate-900 dark:border-slate-900 dark:bg-white"
-        draggable
-        onDragStart={(event) => onDragSource(event, task)}
-        title="Drag to a task to create a dependency"
-        type="button"
-      />
+          <button
+            aria-label={`Create dependency from ${task.title}`}
+            className="absolute -right-2 top-1/2 z-40 size-3 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white bg-slate-900 dark:border-slate-900 dark:bg-white"
+            draggable
+            onDragStart={(event) => onDragSource(event, task)}
+            title="Drag to a task to create a dependency"
+            type="button"
+          />
 
-      <button
-        aria-label={`Add dependency to ${task.title}`}
-        className="absolute -left-2 top-1/2 z-40 size-3 -translate-y-1/2 rounded-full border-2 border-white bg-slate-400 dark:border-slate-900 dark:bg-slate-500"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => onDropDependency(event, task)}
-        title="Drop a predecessor here"
-        type="button"
-      />
+          <button
+            aria-label={`Add dependency to ${task.title}`}
+            className="absolute -left-2 top-1/2 z-40 size-3 -translate-y-1/2 rounded-full border-2 border-white bg-slate-400 dark:border-slate-900 dark:bg-slate-500"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => onDropDependency(event, task)}
+            title="Drop a predecessor here"
+            type="button"
+          />
+        </>
+      )}
     </div>
   );
 };
