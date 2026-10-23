@@ -24,8 +24,8 @@ export const TaskFormModal = ({
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState("");
   const [gender, setGender] = useState("neutral");
-  const [start, setStart] = useState("");
-  const [due, setDue] = useState("");
+  const [start, setStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [due, setDue] = useState(() => new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -34,8 +34,10 @@ export const TaskFormModal = ({
     setSaving(true);
     const name = assignee.trim();
     const user = name ? (gender === "neutral" ? name : `${name}::${gender}`) : null;
+    const effectiveStart = start || new Date().toISOString().slice(0, 10);
+    const effectiveDue = due || new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
     try {
-      if (await add(status, title.trim(), user, start || null, due || null)) close();
+      if (await add(status, title.trim(), user, effectiveStart, effectiveDue)) close();
     } finally {
       setSaving(false);
     }

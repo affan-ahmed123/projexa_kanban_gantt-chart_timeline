@@ -70,10 +70,6 @@ export const getCurrentUser = (): UserSession | null => {
     if (raw) {
       const parsed = JSON.parse(raw) as UserSession;
       if (parsed && parsed.email) {
-        if (parsed.role === "Developer") {
-          parsed.role = "Owner";
-          localStorage.setItem("projexa_current_user", JSON.stringify(parsed));
-        }
         return parsed;
       }
     }

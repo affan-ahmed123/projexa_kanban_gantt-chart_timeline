@@ -128,13 +128,36 @@ export const switchActiveWorkspace = (workspaceId: string): Workspace => {
   return getActiveWorkspace();
 };
 
+export const normalizeTaskDates = (task: Task): Task => {
+  let startDate = task.startDate;
+  let dueDate = task.dueDate;
+
+  if (!startDate && !dueDate) {
+    startDate = task.createdAt ? task.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
+  } else if (!startDate && dueDate) {
+    startDate = new Date(Date.parse(dueDate) - 3 * 86_400_000).toISOString().slice(0, 10);
+  } else if (startDate && !dueDate) {
+    dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
+  }
+
+  if (startDate === task.startDate && dueDate === task.dueDate) {
+    return task;
+  }
+  return {
+    ...task,
+    startDate,
+    dueDate
+  };
+};
+
 export const getWorkspaceTasks = (workspaceId: string): Task[] | null => {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(`projexa_tasks_${workspaceId}`) || localStorage.getItem(`nutsyll_tasks_${workspaceId}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Task[];
-    return Array.isArray(parsed) ? parsed : null;
+    return Array.isArray(parsed) ? parsed.map(normalizeTaskDates) : null;
   } catch {
     return null;
   }
@@ -143,7 +166,10 @@ export const getWorkspaceTasks = (workspaceId: string): Task[] | null => {
 export const saveWorkspaceTasks = (workspaceId: string, tasks: readonly Task[]): void => {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(`projexa_tasks_${workspaceId}`, JSON.stringify(tasks));
+    const normalized = tasks.map(normalizeTaskDates);
+    localStorage.setItem(`projexa_tasks_${workspaceId}`, JSON.stringify(normalized));
+    window.dispatchEvent(new CustomEvent("projexa_tasks_change", { detail: { workspaceId } }));
+    window.dispatchEvent(new CustomEvent("nutsyll_tasks_change", { detail: { workspaceId } }));
   } catch (e) {
     console.error("Failed to save workspace tasks", e);
   }

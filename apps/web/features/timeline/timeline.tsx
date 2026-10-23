@@ -3,7 +3,16 @@
 import type { Task, UpdateTaskInput } from "@workspace/types";
 import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type ReactElement } from "react";
-import { ViewHeader } from "@/features/workspace-foundation/public";
+import {
+  ViewHeader,
+  getActiveWorkspace,
+  getCurrentUser,
+  getWorkspaceTasks,
+  saveWorkspaceTasks,
+  normalizeTaskDates,
+  type UserSession,
+  type Workspace
+} from "@/features/workspace-foundation/public";
 import { createTasksApi } from "@/features/tasks/public";
 import { createGanttTicks, createGanttWindow, createMonthGroups, toUtcDay, type GanttZoom } from "@/features/gantt-chart/public";
 import { calculateAllWorkloads, groupTasksByAssignee } from "./timeline.service";
@@ -15,6 +24,8 @@ type TimelineProps = Readonly<{ apiBaseUrl: string }>;
 export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
   const api = useMemo(() => createTasksApi(apiBaseUrl), [apiBaseUrl]);
   const [tasks, setTasks] = useState<readonly Task[]>([]);
+  const [workspace, setWorkspace] = useState<Workspace>(getActiveWorkspace());
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<GanttZoom>("week");
@@ -22,11 +33,33 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
 
+  const isTeamLead = Boolean(
+    currentUser &&
+    workspace &&
+    (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
+      currentUser.role === "Owner")
+  );
+
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
+    const ws = getActiveWorkspace();
+    setWorkspace(ws);
+    setCurrentUser(getCurrentUser());
+    const local = getWorkspaceTasks(ws.id);
+    if (local && local.length > 0) {
+      setTasks(local.map(normalizeTaskDates));
+      setLoading(false);
+      return;
+    }
     try {
-      setTasks(await api.list());
+      const apiTasks = await api.list();
+      const normalized = (apiTasks || []).map(normalizeTaskDates);
+      setTasks(normalized);
+      if (ws.id && normalized.length > 0) {
+        saveWorkspaceTasks(ws.id, normalized);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tasks");
     } finally {
@@ -35,6 +68,30 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    setWorkspace(getActiveWorkspace());
+    setCurrentUser(getCurrentUser());
+    const handleSession = () => {
+      setWorkspace(getActiveWorkspace());
+      setCurrentUser(getCurrentUser());
+    };
+    const handleTasksChange = () => {
+      const ws = getActiveWorkspace();
+      const local = getWorkspaceTasks(ws.id);
+      if (local && local.length > 0) {
+        setTasks(local.map(normalizeTaskDates));
+      }
+    };
+    window.addEventListener("projexa_session_change", handleSession);
+    window.addEventListener("projexa_tasks_change", handleTasksChange);
+    window.addEventListener("nutsyll_tasks_change", handleTasksChange);
+    return () => {
+      window.removeEventListener("projexa_session_change", handleSession);
+      window.removeEventListener("projexa_tasks_change", handleTasksChange);
+      window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
+    };
+  }, []);
 
   const rows = useMemo(() => groupTasksByAssignee(tasks), [tasks]);
   const ganttWindow = useMemo(() => createGanttWindow(tasks, zoom), [tasks, zoom]);
@@ -51,15 +108,27 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
     event.preventDefault();
     setDragOverRow(null);
     if (!draggedTask || draggedTask.assigneeId === targetPersonId) { setDraggedTask(null); return; }
+    if (!isTeamLead) {
+      setError("Permission denied: Only Team Leads can reassign tasks to other team members.");
+      setTimeout(() => setError(null), 3000);
+      setDraggedTask(null);
+      return;
+    }
     setSavingTaskId(draggedTask.id);
+    const ws = getActiveWorkspace();
     try {
       const input: UpdateTaskInput = { assigneeId: targetPersonId };
       const result = await api.update(draggedTask.id, input);
       setTasks((current) => {
         const updated = new Map([result.task, ...result.rescheduled].map((t) => [t.id, t]));
-        return current.map((t) => updated.get(t.id) ?? t);
+        const nextTasks = current.map((t) => updated.get(t.id) ?? t);
+        saveWorkspaceTasks(ws.id, nextTasks);
+        return nextTasks;
       });
     } catch (err) {
+      const fallback = tasks.map((t) => (t.id === draggedTask.id ? { ...t, assigneeId: targetPersonId } : t));
+      setTasks(fallback);
+      saveWorkspaceTasks(ws.id, fallback);
       setError(err instanceof Error ? err.message : "Failed to update task assignee");
     } finally {
       setSavingTaskId(null);
@@ -143,6 +212,7 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
               <TimelinePersonRow
                 dragOverRow={dragOverRow}
                 ganttWindow={ganttWindow}
+                isTeamLead={isTeamLead}
                 key={row.person?.id ?? "unassigned"}
                 onDragEnd={() => { setDraggedTask(null); setDragOverRow(null); }}
                 onDragLeave={() => setDragOverRow(null)}

@@ -3,7 +3,16 @@
 import type { ScheduledTaskConflict, Task, UpdateTaskInput } from "@workspace/types";
 import { LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { ViewHeader } from "@/features/workspace-foundation/public";
+import {
+  ViewHeader,
+  getActiveWorkspace,
+  getCurrentUser,
+  getWorkspaceTasks,
+  saveWorkspaceTasks,
+  normalizeTaskDates,
+  type UserSession,
+  type Workspace
+} from "@/features/workspace-foundation/public";
 import { createTasksApi } from "@/features/tasks/public";
 import {
   createGanttTicks,
@@ -31,6 +40,8 @@ type GanttChartProps = Readonly<{ apiBaseUrl: string }>;
 export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
   const api = useMemo(() => createTasksApi(apiBaseUrl), [apiBaseUrl]);
   const [tasks, setTasks] = useState<readonly Task[]>([]);
+  const [workspace, setWorkspace] = useState<Workspace>(getActiveWorkspace());
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<GanttZoom>("week");
@@ -38,11 +49,33 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
   const [conflicts, setConflicts] = useState<readonly ScheduledTaskConflict[]>([]);
   const [savingTaskIds, setSavingTaskIds] = useState<ReadonlySet<string>>(() => new Set());
 
+  const isTeamLead = Boolean(
+    currentUser &&
+    workspace &&
+    (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
+      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
+      currentUser.role === "Owner")
+  );
+
   const loadTasks = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
+    const ws = getActiveWorkspace();
+    setWorkspace(ws);
+    setCurrentUser(getCurrentUser());
+    const local = getWorkspaceTasks(ws.id);
+    if (local && local.length > 0) {
+      setTasks(local.map(normalizeTaskDates));
+      setLoading(false);
+      return;
+    }
     try {
-      setTasks(await api.list());
+      const apiTasks = await api.list();
+      const normalized = (apiTasks || []).map(normalizeTaskDates);
+      setTasks(normalized);
+      if (ws.id && normalized.length > 0) {
+        saveWorkspaceTasks(ws.id, normalized);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Schedule could not be loaded.");
     } finally {
@@ -52,14 +85,38 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
 
   useEffect(() => { void loadTasks(); }, [loadTasks]);
 
+  useEffect(() => {
+    setWorkspace(getActiveWorkspace());
+    setCurrentUser(getCurrentUser());
+    const handleSession = () => {
+      setWorkspace(getActiveWorkspace());
+      setCurrentUser(getCurrentUser());
+    };
+    const handleTasksChange = () => {
+      const ws = getActiveWorkspace();
+      const local = getWorkspaceTasks(ws.id);
+      if (local && local.length > 0) {
+        setTasks(local.map(normalizeTaskDates));
+      }
+    };
+    window.addEventListener("projexa_session_change", handleSession);
+    window.addEventListener("projexa_tasks_change", handleTasksChange);
+    window.addEventListener("nutsyll_tasks_change", handleTasksChange);
+    return () => {
+      window.removeEventListener("projexa_session_change", handleSession);
+      window.removeEventListener("projexa_tasks_change", handleTasksChange);
+      window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
+    };
+  }, []);
+
   const scheduledTasks = useMemo(() => sortTasks(tasks.filter((t) => t.startDate && t.dueDate)), [tasks]);
   const unscheduledTasks = useMemo(() => tasks.filter((t) => !t.startDate || !t.dueDate), [tasks]);
-  const window = useMemo(() => createGanttWindow(scheduledTasks, zoom), [scheduledTasks, zoom]);
-  const ticks = useMemo(() => createGanttTicks(window, zoom), [window, zoom]);
+  const ganttWindow = useMemo(() => createGanttWindow(scheduledTasks, zoom), [scheduledTasks, zoom]);
+  const ticks = useMemo(() => createGanttTicks(ganttWindow, zoom), [ganttWindow, zoom]);
   const monthGroups = useMemo(() => createMonthGroups(ticks, zoom), [ticks, zoom]);
-  const timelineWidth = window.totalDays * window.pixelsPerDay;
+  const timelineWidth = ganttWindow.totalDays * ganttWindow.pixelsPerDay;
   const scheduleHeight = scheduledTasks.length * ROW_HEIGHT;
-  const todayX = ((toUtcDay(new Date().toISOString()) - window.startDay) / 86_400_000) * window.pixelsPerDay;
+  const todayX = ((toUtcDay(new Date().toISOString()) - ganttWindow.startDay) / 86_400_000) * ganttWindow.pixelsPerDay;
   const taskRows = useMemo(() => new Map(scheduledTasks.map((t, idx) => [t.id, idx])), [scheduledTasks]);
 
   const commitUpdate = async (id: string, input: UpdateTaskInput): Promise<void> => {
@@ -68,12 +125,17 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
     setError(null);
     setConflicts([]);
     setSavingTaskIds((current) => new Set(current).add(id));
+    const ws = getActiveWorkspace();
     try {
       const result = await api.update(id, input);
-      setTasks((current) => mergeUpdatedTasks(current, result.task, result.rescheduled));
+      const nextTasks = mergeUpdatedTasks(previousTasks, result.task, result.rescheduled).map(normalizeTaskDates);
+      setTasks(nextTasks);
+      saveWorkspaceTasks(ws.id, nextTasks);
       setConflicts(result.conflicts);
     } catch (cause) {
-      setTasks(previousTasks);
+      const fallback = previousTasks.map((t) => (t.id === id ? normalizeTaskDates({ ...t, ...input } as Task) : t));
+      setTasks(fallback);
+      saveWorkspaceTasks(ws.id, fallback);
       setError(cause instanceof Error ? cause.message : "Task changes could not be saved.");
     } finally {
       setSavingTaskIds((current) => {
@@ -86,11 +148,25 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
 
   const createDependency = async (predecessor: string, dependent: Task): Promise<void> => {
     if (predecessor === dependent.id || dependent.dependsOn.includes(predecessor)) return;
+    if (!isTeamLead) {
+      setError("Permission denied: Only Team Leads can configure task dependencies.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
     await commitUpdate(dependent.id, { dependsOn: [...dependent.dependsOn, predecessor] });
   };
 
   const beginGesture = (e: ReactPointerEvent<HTMLButtonElement>, task: Task, mode: Gesture["mode"]): void => {
     if (!task.startDate || !task.dueDate || savingTaskIds.has(task.id)) return;
+    const assignedClean = task.assigneeId ? task.assigneeId.split("::")[0]?.trim().toLowerCase() : "";
+    const isAssignedToMe = Boolean(
+      currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()
+    );
+    if (!isTeamLead && !isAssignedToMe) {
+      setError("Permission denied: You can only adjust dates for tasks assigned to you.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setGesture({ task, mode, pointerId: e.pointerId, initialX: e.clientX, deltaDays: 0 });
@@ -98,7 +174,7 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
 
   const moveGesture = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (!gesture || gesture.pointerId !== e.pointerId) return;
-    setGesture((current) => current ? { ...current, deltaDays: getDragDayDelta(e.clientX - current.initialX, window) } : current);
+    setGesture((current) => current ? { ...current, deltaDays: getDragDayDelta(e.clientX - current.initialX, ganttWindow) } : current);
   };
 
   const finishGesture = (e: ReactPointerEvent<HTMLDivElement>): void => {
@@ -112,20 +188,20 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
   const barDates = (task: Task) => gesture?.task.id === task.id && gesture ? getPreviewDates(gesture) : (task.startDate && task.dueDate ? { startDate: task.startDate, dueDate: task.dueDate } : null);
 
   const dependencyPaths = useMemo(() => scheduledTasks.flatMap((task) => {
-    const target = getTaskBarLayout(task, window);
+    const target = getTaskBarLayout(task, ganttWindow);
     const targetRow = taskRows.get(task.id);
     if (!target || targetRow === undefined) return [];
     return task.dependsOn.flatMap((predecessorId: string) => {
       const predecessor = scheduledTasks.find(({ id }) => id === predecessorId);
       const predecessorRow = taskRows.get(predecessorId);
-      const source = predecessor ? getTaskBarLayout(predecessor, window) : null;
+      const source = predecessor ? getTaskBarLayout(predecessor, ganttWindow) : null;
       if (!source || predecessorRow === undefined) return [];
       const fromX = source.left + source.width;
       const toX = target.left;
       const middleX = Math.max(fromX + 10, (fromX + toX) / 2);
       return [{ id: `${predecessorId}-${task.id}`, path: `M ${fromX} ${predecessorRow * ROW_HEIGHT + ROW_HEIGHT / 2} H ${middleX} V ${targetRow * ROW_HEIGHT + ROW_HEIGHT / 2} H ${toX}` }];
     });
-  }), [scheduledTasks, taskRows, window]);
+  }), [scheduledTasks, taskRows, ganttWindow]);
 
   return (
     <main className="relative mx-auto min-h-screen w-full max-w-[1680px] px-3.5 py-4 sm:px-8 sm:py-6">
@@ -186,10 +262,10 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
                       {dependencyPaths.map(({ id, path }) => <path className="text-slate-800 dark:text-slate-200" d={path} fill="none" key={id} markerEnd="url(#gantt-arrow)" stroke="currentColor" strokeWidth="1.5" />)}
                     </svg>
                     {scheduledTasks.map((task) => {
-                      const baseLayout = getTaskBarLayout(task, window);
+                      const baseLayout = getTaskBarLayout(task, ganttWindow);
                       const dates = barDates(task);
                       if (!baseLayout || !dates) return null;
-                      const preview = getTaskBarLayout({ ...task, ...dates }, window) ?? baseLayout;
+                      const preview = getTaskBarLayout({ ...task, ...dates }, ganttWindow) ?? baseLayout;
                       return (
                         <GanttTaskBar
                           dates={dates}

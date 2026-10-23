@@ -12,6 +12,8 @@ import {
   switchActiveWorkspace,
   getWorkspaceTasks,
   saveWorkspaceTasks,
+  normalizeTaskDates,
+  getRegisteredUsers,
   type UserSession,
   type Workspace,
   type WorkspaceMember
@@ -56,23 +58,31 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
 
       if (inviteWsId && inviteEmail) {
         const cleanEmail = inviteEmail.trim().toLowerCase();
-        const cleanName = inviteName ? inviteName.trim() : cleanEmail.split("@")[0] || "Team Member";
+        const registered = getRegisteredUsers();
+        const existingAccount = registered.find((u) => u.email.toLowerCase() === cleanEmail);
+        const cleanName = existingAccount?.name || (inviteName ? inviteName.trim() : cleanEmail.split("@")[0] || "Team Member");
         const targetWs = switchActiveWorkspace(inviteWsId);
         setWorkspace(targetWs);
 
         if (!targetWs.members.some((m) => m.email.toLowerCase() === cleanEmail)) {
           addMemberToWorkspace(inviteWsId, {
-            id: `mem-${Date.now()}`,
+            id: existingAccount?.id || `mem-${Date.now()}`,
             name: cleanName,
             email: cleanEmail,
             role: inviteRole,
-            gender: "neutral"
+            gender: existingAccount?.gender || "neutral"
           });
         }
-        const session: UserSession = { id: `usr-${Date.now()}`, name: cleanName, email: cleanEmail, role: inviteRole };
+        const session: UserSession = {
+          id: existingAccount?.id || `usr-${Date.now()}`,
+          name: cleanName,
+          email: cleanEmail,
+          role: inviteRole,
+          gender: existingAccount?.gender || "neutral"
+        };
         setCurrentUser(session);
         setCurrentUserState(session);
-        showToast(`Welcome ${cleanName}! You joined "${targetWs.name}" via your invitation.`);
+        showToast(`Welcome ${cleanName}! You joined "${targetWs.name}".`);
         window.history.replaceState({}, document.title, window.location.pathname);
         window.dispatchEvent(new Event("projexa_session_change"));
       }
@@ -84,8 +94,21 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
       setWorkspace(getActiveWorkspace());
       setCurrentUserState(getCurrentUser());
     };
+    const handleTasksChange = () => {
+      const ws = getActiveWorkspace();
+      const localTasks = getWorkspaceTasks(ws.id);
+      if (localTasks) {
+        setTasks(localTasks);
+      }
+    };
     window.addEventListener("projexa_session_change", handleSessionChange);
-    return () => window.removeEventListener("projexa_session_change", handleSessionChange);
+    window.addEventListener("projexa_tasks_change", handleTasksChange);
+    window.addEventListener("nutsyll_tasks_change", handleTasksChange);
+    return () => {
+      window.removeEventListener("projexa_session_change", handleSessionChange);
+      window.removeEventListener("projexa_tasks_change", handleTasksChange);
+      window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
+    };
   }, [showToast]);
 
   const isTeamLead = Boolean(
@@ -93,8 +116,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     workspace &&
     (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
       currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase() ||
-      currentUser.role === "Owner" ||
-      currentUser.name.toLowerCase() === workspace.teamLead?.name?.toLowerCase())
+      currentUser.role === "Owner")
   );
 
   const load = useCallback(async () => {
@@ -111,8 +133,9 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     try {
       const apiTasks = await api.list();
       if (apiTasks && apiTasks.length > 0) {
-        setTasks(apiTasks);
-        saveWorkspaceTasks(ws.id, apiTasks);
+        const normalized = apiTasks.map(normalizeTaskDates);
+        setTasks(normalized);
+        saveWorkspaceTasks(ws.id, normalized);
         setError(null);
         setLoading(false);
         return;
@@ -146,6 +169,17 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
   const updateStatus = async (id: string, status: TaskStatus) => {
     const previous = tasks.find((t) => t.id === id);
     if (!previous || previous.status === status || saving.has(id)) return;
+
+    // Permissions: Leads have full control; Developers can ONLY move their own tasks
+    const assignedClean = previous.assigneeId ? clean(previous.assigneeId).toLowerCase() : "";
+    const isAssignedToMe = Boolean(
+      currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()
+    );
+    if (!isTeamLead && !isAssignedToMe) {
+      showToast("Permission denied: You can only move tasks assigned to you.");
+      return;
+    }
+
     const nextTasks = tasks.map((t) => (t.id === id ? { ...t, status } : t));
     setTasks(nextTasks);
     saveWorkspaceTasks(workspace.id, nextTasks);
@@ -168,19 +202,43 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
   const add = async (s: TaskStatus, t: string, a: string | null, st: string | null, d: string | null): Promise<boolean> => {
     const tempId = `task-${Date.now()}`;
     const now = new Date().toISOString();
-    const newTask: Task = { id: tempId, title: t, status: s, assigneeId: a, startDate: st, dueDate: d, dependsOn: [], createdAt: now, updatedAt: now };
+    const effectiveStart = st || now.slice(0, 10);
+    const effectiveDue = d || new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const newTask: Task = {
+      id: tempId,
+      title: t,
+      status: s,
+      assigneeId: a,
+      startDate: effectiveStart,
+      dueDate: effectiveDue,
+      dependsOn: [],
+      createdAt: now,
+      updatedAt: now
+    };
     const nextList = [newTask, ...tasks];
     setTasks(nextList);
     saveWorkspaceTasks(workspace.id, nextList);
     try {
-      const created = await api.create({ title: t, status: s, assigneeId: a, startDate: st, dueDate: d, dependsOn: [] });
-      setTasks((cur) => cur.map((item) => (item.id === tempId ? created : item)));
-      saveWorkspaceTasks(workspace.id, nextList.map((item) => (item.id === tempId ? created : item)));
+      const created = await api.create({
+        title: t,
+        status: s,
+        assigneeId: a,
+        startDate: effectiveStart,
+        dueDate: effectiveDue,
+        dependsOn: []
+      });
+      const finalized = nextList.map((item) => (item.id === tempId ? { ...created, startDate: effectiveStart, dueDate: effectiveDue } : item));
+      setTasks(finalized);
+      saveWorkspaceTasks(workspace.id, finalized);
     } catch {}
     return true;
   };
 
   const remove = async (id: string) => {
+    if (!isTeamLead) {
+      showToast("Only Team Leads can delete tasks.");
+      return;
+    }
     const nextList = tasks.filter((t) => t.id !== id);
     setTasks(nextList);
     saveWorkspaceTasks(workspace.id, nextList);

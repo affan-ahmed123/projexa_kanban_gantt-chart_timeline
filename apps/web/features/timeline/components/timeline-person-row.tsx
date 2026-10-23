@@ -16,6 +16,7 @@ type TimelinePersonRowProps = Readonly<{
   todayX: number;
   dragOverRow: string | null;
   savingTaskId: string | null;
+  isTeamLead?: boolean;
   onDragStart: (task: Task) => void;
   onDragEnd: () => void;
   onDragOver: (event: ReactDragEvent<HTMLElement>, personId: string | null) => void;
@@ -32,6 +33,7 @@ export const TimelinePersonRow = ({
   todayX,
   dragOverRow,
   savingTaskId,
+  isTeamLead = false,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -138,15 +140,18 @@ export const TimelinePersonRow = ({
               task.status !== "done" &&
               task.dueDate !== null &&
               toUtcDay(task.dueDate) < toUtcDay(new Date().toISOString());
+            const canDrag = isTeamLead && !isSaving;
             return (
               <div
-                className={`absolute cursor-move rounded-lg ${TASK_STATUS_CLASSES[task.status]} px-2.5 py-1 text-xs shadow-2xs transition-all ${
-                  isSaving ? "opacity-50" : "hover:opacity-95 hover:shadow-xs active:cursor-grabbing"
+                className={`absolute rounded-lg ${TASK_STATUS_CLASSES[task.status]} px-2.5 py-1 text-xs shadow-2xs transition-all ${
+                  canDrag ? "cursor-move hover:opacity-95 hover:shadow-xs active:cursor-grabbing" : "cursor-default"
+                } ${
+                  isSaving ? "opacity-50" : ""
                 } ${isLate ? "border-2 border-rose-500" : ""}`}
-                draggable={!isSaving}
+                draggable={canDrag}
                 key={task.id}
                 onDragEnd={onDragEnd}
-                onDragStart={() => onDragStart(task)}
+                onDragStart={() => { if (canDrag) onDragStart(task); }}
                 style={{
                   ...getTaskStyle(task.status, isLate),
                   left: layout.left,

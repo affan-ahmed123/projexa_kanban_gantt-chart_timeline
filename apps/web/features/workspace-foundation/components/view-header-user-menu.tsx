@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { Check, ChevronDown, Crown, User } from "lucide-react";
-import type { UserSession, Workspace } from "../workspace.service";
+import { Check, ChevronDown, Crown, LogOut, User } from "lucide-react";
+import { logoutUser, type UserSession, type Workspace } from "../workspace.service";
 import { getAvatarUrl } from "../utils/profile-avatar";
 import { ViewHeaderCustomUser } from "./view-header-custom-user";
 
@@ -41,7 +41,7 @@ export const ViewHeaderUserMenu = ({
             : "border-cyan-300/60 bg-cyan-950/70 text-cyan-100 hover:bg-cyan-900/80 dark:border-slate-700 dark:bg-slate-800"
         }`}
         onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-        title="Click to switch active user role and test permissions"
+        title={isCurrentLead ? "Click to switch active user role and test permissions" : "View profile and account details"}
         type="button"
       >
         {isCurrentLead ? (
@@ -60,111 +60,165 @@ export const ViewHeaderUserMenu = ({
 
       {userDropdownOpen && (
         <div
-          className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-300 bg-white p-2.5 text-slate-900 shadow-2xl backdrop-blur-lg dark:border-[#2b3e5e] dark:bg-[#121c2d] dark:text-white z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-300 bg-white p-3 text-slate-900 shadow-2xl backdrop-blur-lg dark:border-[#2b3e5e] dark:bg-[#121c2d] dark:text-white z-50 animate-in fade-in zoom-in-95 duration-150"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="border-b border-slate-200 pb-2 px-2 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Switch Active User
-              </span>
-              <span className="text-[10px] text-slate-400">Simulate Permissions</span>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Lead has full control; Members can only move their own tasks.
-            </p>
-          </div>
-
-          <div className="my-1.5 space-y-1 max-h-56 overflow-y-auto">
-            {workspace && (
-              <button
-                className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-colors cursor-pointer ${
-                  currentUser?.email.toLowerCase() === workspace.teamLead?.email.toLowerCase()
-                    ? "bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 font-semibold border border-amber-300/80"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-                onClick={() => {
-                  onSelectUser({
-                    id: "usr-lead",
-                    name: workspace.teamLead?.name || "Team Lead",
-                    email: workspace.teamLead?.email || workspace.creatorEmail,
-                    role: "Owner"
-                  });
-                  setUserDropdownOpen(false);
-                }}
-                type="button"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    alt={workspace.teamLead?.name || "Lead"}
-                    className="size-6 shrink-0 rounded-full object-cover ring-1 ring-amber-400"
-                    src={getAvatarUrl(workspace.teamLead?.name || "Lead", workspace.teamLead?.gender)}
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="truncate">{workspace.teamLead?.name || "Team Lead"}</span>
-                      <Crown className="size-3 text-amber-500 shrink-0" />
-                    </div>
-                    <span className="block text-[10px] text-slate-400 truncate">
-                      {workspace.teamLead?.email || workspace.creatorEmail} (Full Control)
-                    </span>
-                  </div>
+          {isCurrentLead ? (
+            <>
+              <div className="border-b border-slate-200 pb-2 px-1 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Switch Active User
+                  </span>
+                  <span className="text-[10px] text-slate-400">Simulate Permissions</span>
                 </div>
-                {currentUser?.email.toLowerCase() === workspace.teamLead?.email.toLowerCase() && (
-                  <Check className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                )}
-              </button>
-            )}
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Lead has full control; Members can only move their own tasks.
+                </p>
+              </div>
 
-            {workspace?.members
-              .filter(
-                (m) =>
-                  m.id !== "mem-lead" &&
-                  m.email.toLowerCase() !== workspace.teamLead?.email.toLowerCase()
-              )
-              .map((m) => {
-                const isSelected = currentUser?.email.toLowerCase() === m.email.toLowerCase();
-                return (
+              <div className="my-1.5 space-y-1 max-h-56 overflow-y-auto">
+                {workspace && (
                   <button
                     className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? "bg-cyan-50 text-cyan-900 dark:bg-cyan-950/60 dark:text-cyan-200 font-semibold border border-cyan-300/80"
+                      currentUser?.email.toLowerCase() === workspace.teamLead?.email.toLowerCase()
+                        ? "bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 font-semibold border border-amber-300/80"
                         : "hover:bg-slate-100 dark:hover:bg-slate-800"
                     }`}
-                    key={m.id}
                     onClick={() => {
-                      onSelectUser({ id: m.id, name: m.name, email: m.email, role: m.role });
+                      onSelectUser({
+                        id: "usr-lead",
+                        name: workspace.teamLead?.name || "Team Lead",
+                        email: workspace.teamLead?.email || workspace.creatorEmail,
+                        role: "Owner"
+                      });
                       setUserDropdownOpen(false);
                     }}
                     type="button"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <img
-                        alt={m.name}
-                        className="size-6 shrink-0 rounded-full object-cover ring-1 ring-slate-300 dark:ring-slate-600"
-                        src={getAvatarUrl(m.name, m.gender)}
+                        alt={workspace.teamLead?.name || "Lead"}
+                        className="size-6 shrink-0 rounded-full object-cover ring-1 ring-amber-400"
+                        src={getAvatarUrl(workspace.teamLead?.name || "Lead", workspace.teamLead?.gender)}
                       />
                       <div className="min-w-0">
-                        <span className="truncate block">{m.name}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="truncate">{workspace.teamLead?.name || "Team Lead"}</span>
+                          <Crown className="size-3 text-amber-500 shrink-0" />
+                        </div>
                         <span className="block text-[10px] text-slate-400 truncate">
-                          {m.email} ({m.role})
+                          {workspace.teamLead?.email || workspace.creatorEmail} (Full Control)
                         </span>
                       </div>
                     </div>
-                    {isSelected && (
-                      <Check className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    {currentUser?.email.toLowerCase() === workspace.teamLead?.email.toLowerCase() && (
+                      <Check className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                     )}
                   </button>
-                );
-              })}
-          </div>
+                )}
 
-          <ViewHeaderCustomUser
-            currentUser={currentUser}
-            onCloseDropdown={() => setUserDropdownOpen(false)}
-            onSelectUser={onSelectUser}
-            workspace={workspace}
-          />
+                {workspace?.members
+                  .filter(
+                    (m) =>
+                      m.id !== "mem-lead" &&
+                      m.email.toLowerCase() !== workspace.teamLead?.email.toLowerCase()
+                  )
+                  .map((m) => {
+                    const isSelected = currentUser?.email.toLowerCase() === m.email.toLowerCase();
+                    return (
+                      <button
+                        className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-cyan-50 text-cyan-900 dark:bg-cyan-950/60 dark:text-cyan-200 font-semibold border border-cyan-300/80"
+                            : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                        key={m.id}
+                        onClick={() => {
+                          onSelectUser({ id: m.id, name: m.name, email: m.email, role: m.role });
+                          setUserDropdownOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <img
+                            alt={m.name}
+                            className="size-6 shrink-0 rounded-full object-cover ring-1 ring-slate-300 dark:ring-slate-600"
+                            src={getAvatarUrl(m.name, m.gender)}
+                          />
+                          <div className="min-w-0">
+                            <span className="truncate block">{m.name}</span>
+                            <span className="block text-[10px] text-slate-400 truncate">
+                              {m.email} ({m.role})
+                            </span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <Check className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <ViewHeaderCustomUser
+                currentUser={currentUser}
+                onCloseDropdown={() => setUserDropdownOpen(false)}
+                onSelectUser={onSelectUser}
+                workspace={workspace}
+              />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                <img
+                  alt={currentUser?.name || "Member"}
+                  className="size-11 shrink-0 rounded-full object-cover ring-2 ring-cyan-500/50"
+                  src={getAvatarUrl(currentUser?.name || "Member", currentUser?.gender)}
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm truncate text-slate-900 dark:text-white">
+                      {currentUser?.name || "Member"}
+                    </span>
+                  </div>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {currentUser?.email}
+                  </span>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="inline-flex items-center rounded-md bg-cyan-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-300 border border-cyan-300/60 dark:border-cyan-700/60">
+                      Developer (Member)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
+                <div className="flex items-center justify-between font-medium">
+                  <span>Workspace:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                    {workspace?.name || "Workspace"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-200/60 dark:border-slate-700/40">
+                  You have Developer rights. You can progress and drag-and-drop your own assigned tasks.
+                </p>
+              </div>
+
+              <button
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
+                onClick={() => {
+                  logoutUser();
+                  setUserDropdownOpen(false);
+                  window.location.href = "/";
+                }}
+                type="button"
+              >
+                <LogOut className="size-3.5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

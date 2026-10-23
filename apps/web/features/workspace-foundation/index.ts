@@ -20,6 +20,7 @@ export {
   getRegisteredUsers,
   getWorkspaceTasks,
   saveWorkspaceTasks,
+  normalizeTaskDates,
   DEFAULT_WORKSPACE,
   DEFAULT_LEAD,
   DEFAULT_STARTER_TASKS
