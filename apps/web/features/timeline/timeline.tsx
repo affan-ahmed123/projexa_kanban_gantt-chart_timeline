@@ -10,6 +10,7 @@ import {
   getWorkspaceTasks,
   saveWorkspaceTasks,
   normalizeTaskDates,
+  useWorkspaceSocket,
   type UserSession,
   type Workspace
 } from "@/features/workspace-foundation/public";
@@ -40,6 +41,13 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
       currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
 
+  const { broadcastTasks } = useWorkspaceSocket({
+    workspaceId: workspace.id,
+    currentUser,
+    apiBaseUrl,
+    onTasksUpdated: (newTasks) => setTasks(newTasks)
+  });
+
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -52,6 +60,19 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
       setLoading(false);
       return;
     }
+    try {
+      const res = await fetch(`/api/workspace-tasks?workspaceId=${encodeURIComponent(ws.id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.tasks && data.tasks.length > 0) {
+          const normalized = data.tasks.map(normalizeTaskDates);
+          setTasks(normalized);
+          saveWorkspaceTasks(ws.id, normalized);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
     try {
       const apiTasks = await api.list();
       const normalized = (apiTasks || []).map(normalizeTaskDates);
@@ -133,12 +154,14 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
         const updated = new Map([result.task, ...result.rescheduled].map((t) => [t.id, t]));
         const nextTasks = current.map((t) => updated.get(t.id) ?? t);
         saveWorkspaceTasks(ws.id, nextTasks);
+        broadcastTasks(nextTasks, "reassigned");
         return nextTasks;
       });
     } catch (err) {
       const fallback = tasks.map((t) => (t.id === draggedTask.id ? { ...t, assigneeId: targetPersonId } : t));
       setTasks(fallback);
       saveWorkspaceTasks(ws.id, fallback);
+      broadcastTasks(fallback, "reassigned");
       setError(err instanceof Error ? err.message : "Failed to update task assignee");
     } finally {
       setSavingTaskId(null);

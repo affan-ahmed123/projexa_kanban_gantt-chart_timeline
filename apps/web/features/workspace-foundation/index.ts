@@ -1,4 +1,5 @@
-export { WorkspaceFoundation, ViewHeader, ThemeToggle, InviteModal, AuthCard } from "./components";
+export { WorkspaceFoundation, ViewHeader, ThemeToggle, InviteModal, AuthCard, WorkspaceMembersModal } from "./components";
+export { useWorkspaceSocket } from "./hooks/use-workspace-socket";
 export { getAvatarColor, detectGender, getAvatarUrl, getInitials } from "./utils/profile-avatar";
 export {
   getActiveWorkspace,

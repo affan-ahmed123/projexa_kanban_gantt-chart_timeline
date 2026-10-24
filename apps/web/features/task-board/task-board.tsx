@@ -16,6 +16,7 @@ import {
   saveWorkspaceTasks,
   normalizeTaskDates,
   getRegisteredUsers,
+  useWorkspaceSocket,
   type UserSession,
   type Workspace,
   type WorkspaceMember
@@ -165,6 +166,21 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
   );
   const memberRole = isTeamLead ? "Team Lead" : (memberInWorkspace?.role || "Developer");
 
+  // Handle incoming real-time socket updates from team lead or peers
+  const handleRemoteTasksUpdated = useCallback((newTasks: readonly Task[], sender?: string) => {
+    setTasks(newTasks);
+    if (sender && currentUser && sender.toLowerCase() !== currentUser.name.toLowerCase()) {
+      showToast(`⚡ Real-time update: ${sender} updated board tasks.`);
+    }
+  }, [currentUser, showToast]);
+
+  const { connected: socketConnected, broadcastTasks } = useWorkspaceSocket({
+    workspaceId: workspace.id,
+    currentUser,
+    apiBaseUrl,
+    onTasksUpdated: handleRemoteTasksUpdated
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     const ws = getActiveWorkspace();
@@ -174,8 +190,31 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     if (localTasks && localTasks.length > 0) {
       setTasks(localTasks);
       setLoading(false);
+      // Synchronize to server cache so joining members immediately receive them
+      void fetch("/api/workspace-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: ws.id, tasks: localTasks })
+      }).catch(() => {});
       return;
     }
+
+    // If local storage is empty, check server-shared cache
+    try {
+      const res = await fetch(`/api/workspace-tasks?workspaceId=${encodeURIComponent(ws.id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.tasks && data.tasks.length > 0) {
+          const normalized = data.tasks.map(normalizeTaskDates);
+          setTasks(normalized);
+          saveWorkspaceTasks(ws.id, normalized);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // Fallback to API if available
     try {
       const apiTasks = await api.list();
       if (apiTasks && apiTasks.length > 0) {
@@ -218,9 +257,19 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
 
     // Permissions: Leads have full control; Developers can ONLY move their own tasks
     const assignedClean = previous.assigneeId ? clean(previous.assigneeId).toLowerCase() : "";
+    const memberNameClean = (currentUser?.name ?? "").trim().toLowerCase();
+    const memberEmailClean = (currentUser?.email ?? "").trim().toLowerCase();
+
     const isAssignedToMe = Boolean(
-      (currentUser?.name && assignedClean && assignedClean === currentUser.name.toLowerCase()) ||
-      (currentUser?.email && previous.assigneeId && previous.assigneeId.toLowerCase() === currentUser.email.toLowerCase())
+      (memberNameClean && assignedClean && (
+        assignedClean === memberNameClean ||
+        memberNameClean.includes(assignedClean) ||
+        assignedClean.includes(memberNameClean)
+      )) ||
+      (memberEmailClean && previous.assigneeId && (
+        previous.assigneeId.toLowerCase() === memberEmailClean ||
+        previous.assigneeId.toLowerCase().includes(memberEmailClean)
+      ))
     );
     if (!isTeamLead && !isAssignedToMe) {
       showToast("Permission denied: You can only move tasks assigned to you.");
@@ -230,6 +279,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const nextTasks = tasks.map((t) => (t.id === id ? { ...t, status } : t));
     setTasks(nextTasks);
     saveWorkspaceTasks(workspace.id, nextTasks);
+    broadcastTasks(nextTasks, "status_change", { ...previous, status });
     setSaving((s) => new Set(s).add(id));
     try {
       await api.update(id, { status });
@@ -265,6 +315,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const nextList = [newTask, ...tasks];
     setTasks(nextList);
     saveWorkspaceTasks(workspace.id, nextList);
+    broadcastTasks(nextList, "task_added", newTask);
     try {
       const created = await api.create({
         title: t,
@@ -277,6 +328,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
       const finalized = nextList.map((item) => (item.id === tempId ? { ...created, startDate: effectiveStart, dueDate: effectiveDue } : item));
       setTasks(finalized);
       saveWorkspaceTasks(workspace.id, finalized);
+      broadcastTasks(finalized, "task_finalized", created);
     } catch {}
     return true;
   };
@@ -289,6 +341,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const nextList = tasks.filter((t) => t.id !== id);
     setTasks(nextList);
     saveWorkspaceTasks(workspace.id, nextList);
+    broadcastTasks(nextList, "task_deleted");
     try { await api.remove(id); } catch {}
   };
 
@@ -309,7 +362,15 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1.2px,transparent_1.2px)] [background-size:24px_24px] opacity-75 dark:bg-[radial-gradient(#1e293b_1.2px,transparent_1.2px)] dark:opacity-60" />
       </div>
       <ViewHeader activeView="board" description="Manage work items and track sprint delivery across stages." taskCount={tasks.length} title="Kanban Board" />
-      <TaskBoardSprintOverview isTeamLead={isTeamLead} memberRole={memberRole} onOpenQuickAdd={() => setQuickAddOpen(true)} onStatusFilterChange={setStatusFilter} statusFilter={statusFilter} tasks={tasks} />
+      <TaskBoardSprintOverview
+        isTeamLead={isTeamLead}
+        memberRole={memberRole}
+        onOpenQuickAdd={() => setQuickAddOpen(true)}
+        onStatusFilterChange={setStatusFilter}
+        socketConnected={socketConnected}
+        statusFilter={statusFilter}
+        tasks={tasks}
+      />
       {toastMessage && (
         <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur-md text-xs font-medium text-slate-800 dark:border-[#293d5c] dark:bg-[#182338] dark:text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /><span>{toastMessage}</span>
@@ -321,6 +382,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
           <TaskBoardColumn
             column={col}
             currentMemberName={currentUser?.name}
+            currentUserEmail={currentUser?.email}
             drop={handleDrop}
             isDragOver={dragOverColumn === col.status}
             isSingleMobileView={mobileColumnTab !== "all"}

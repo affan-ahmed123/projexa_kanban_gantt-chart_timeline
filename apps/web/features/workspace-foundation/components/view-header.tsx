@@ -26,6 +26,8 @@ import {
   type Workspace
 } from "../workspace.service";
 import { ViewHeaderUserMenu } from "./view-header-user-menu";
+import { WorkspaceMembersModal } from "./workspace-members-modal";
+import { InviteModal } from "./invite-modal";
 
 type ViewName = "board" | "gantt" | "timeline";
 
@@ -100,6 +102,14 @@ export const ViewHeader = ({
 
   const WsIcon = getWorkspaceIcon(workspace?.icon);
 
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
+  const membersList = workspace?.members || [];
+  const leadEmail = workspace?.teamLead?.email || workspace?.creatorEmail || "";
+  const leadAlreadyInMembers = membersList.some((m) => m.email.toLowerCase() === leadEmail.toLowerCase());
+  const totalMembersCount = leadAlreadyInMembers ? membersList.length : membersList.length + 1;
+
   return (
     <header className="relative z-30 mb-4 sm:mb-6 rounded-2xl border border-cyan-400/40 bg-gradient-to-r from-[#072d3f] via-[#0c4a63] to-[#0e6382] p-4 sm:p-5 text-white shadow-sm backdrop-blur-xl">
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] overflow-hidden rounded-t-2xl">
@@ -121,6 +131,17 @@ export const ViewHeader = ({
         </nav>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* View Team Members Button */}
+          <button
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-100 hover:text-white px-3 py-1 text-xs font-medium transition-all shadow-2xs backdrop-blur-xs cursor-pointer active:scale-95"
+            onClick={() => setMembersModalOpen(true)}
+            title="View workspace members directory and roles"
+            type="button"
+          >
+            <Users className="size-3 text-cyan-300 shrink-0" />
+            <span>{totalMembersCount} {totalMembersCount === 1 ? "Member" : "Members"}</span>
+          </button>
+
           <ViewHeaderUserMenu
             activeRoleName={activeRoleName}
             currentUser={currentUser}
@@ -152,7 +173,7 @@ export const ViewHeader = ({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 border border-cyan-300/40">
-                  <Lock className="size-2.5" /><span>Member Mode</span>
+                  <Lock className="size-2.5" /><span>{activeRoleName} Mode</span>
                 </span>
               )}
             </div>
@@ -189,6 +210,28 @@ export const ViewHeader = ({
           </Link>
         </div>
       </div>
+
+      <WorkspaceMembersModal
+        currentUser={currentUser}
+        isOpen={membersModalOpen}
+        onClose={() => setMembersModalOpen(false)}
+        onOpenInvite={() => setInviteModalOpen(true)}
+        workspace={workspace}
+      />
+
+      {inviteModalOpen && workspace && (
+        <InviteModal
+          currentUserEmail={currentUser?.email || leadEmail}
+          currentUserName={currentUser?.name || workspace.teamLead?.name || "Team Lead"}
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
+          onMemberAdded={(updatedWs) => {
+            setWorkspace(updatedWs);
+            window.dispatchEvent(new Event("projexa_session_change"));
+          }}
+          workspace={workspace}
+        />
+      )}
     </header>
   );
 };

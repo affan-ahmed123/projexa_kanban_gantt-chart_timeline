@@ -18,6 +18,7 @@ type TaskColumnProps = Readonly<{
   onStatusChange: (id: string, status: TaskStatus) => void;
   isSingleMobileView?: boolean;
   currentMemberName?: string | undefined;
+  currentUserEmail?: string | undefined;
   isTeamLead: boolean;
 }>;
 
@@ -33,6 +34,7 @@ export const TaskBoardColumn = ({
   onStatusChange,
   isSingleMobileView = false,
   currentMemberName,
+  currentUserEmail,
   isTeamLead
 }: TaskColumnProps): ReactElement => {
   const pct = totalTasks > 0 ? Math.round((tasks.length / totalTasks) * 100) : 0;
@@ -96,6 +98,7 @@ export const TaskBoardColumn = ({
         {tasks.map((task) => (
           <TaskBoardCard
             currentMemberName={currentMemberName}
+            currentUserEmail={currentUserEmail}
             isTeamLead={isTeamLead}
             key={task.id}
             onStatusChange={onStatusChange}

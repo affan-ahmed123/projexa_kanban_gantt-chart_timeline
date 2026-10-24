@@ -10,6 +10,7 @@ import {
   getWorkspaceTasks,
   saveWorkspaceTasks,
   normalizeTaskDates,
+  useWorkspaceSocket,
   type UserSession,
   type Workspace
 } from "@/features/workspace-foundation/public";
@@ -56,6 +57,13 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
   );
 
+  const { broadcastTasks } = useWorkspaceSocket({
+    workspaceId: workspace.id,
+    currentUser,
+    apiBaseUrl,
+    onTasksUpdated: (newTasks) => setTasks(newTasks)
+  });
+
   const loadTasks = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -68,6 +76,19 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       setLoading(false);
       return;
     }
+    try {
+      const res = await fetch(`/api/workspace-tasks?workspaceId=${encodeURIComponent(ws.id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.tasks && data.tasks.length > 0) {
+          const normalized = data.tasks.map(normalizeTaskDates);
+          setTasks(normalized);
+          saveWorkspaceTasks(ws.id, normalized);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
     try {
       const apiTasks = await api.list();
       const normalized = (apiTasks || []).map(normalizeTaskDates);
@@ -141,11 +162,13 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       const nextTasks = mergeUpdatedTasks(previousTasks, result.task, result.rescheduled).map(normalizeTaskDates);
       setTasks(nextTasks);
       saveWorkspaceTasks(ws.id, nextTasks);
+      broadcastTasks(nextTasks, "gantt_update");
       setConflicts(result.conflicts);
     } catch (cause) {
       const fallback = previousTasks.map((t) => (t.id === id ? normalizeTaskDates({ ...t, ...input } as Task) : t));
       setTasks(fallback);
       saveWorkspaceTasks(ws.id, fallback);
+      broadcastTasks(fallback, "gantt_update");
       setError(cause instanceof Error ? cause.message : "Task changes could not be saved.");
     } finally {
       setSavingTaskIds((current) => {

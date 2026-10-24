@@ -11,6 +11,7 @@ type TaskCardProps = Readonly<{
   remove: (id: string) => Promise<void>;
   onStatusChange: (id: string, status: TaskStatus) => void;
   currentMemberName?: string | undefined;
+  currentUserEmail?: string | undefined;
   isTeamLead: boolean;
 }>;
 
@@ -19,6 +20,7 @@ export const TaskBoardCard = ({
   remove,
   onStatusChange,
   currentMemberName,
+  currentUserEmail,
   isTeamLead
 }: TaskCardProps): ReactElement => {
   const [deleting, setDeleting] = useState(false);
@@ -28,8 +30,19 @@ export const TaskBoardCard = ({
   const ticketKey = `#TASK-${task.id.replace(/[^0-9a-zA-Z]/g, "").slice(-3).toUpperCase() || "1"}`;
 
   const assignedClean = task.assigneeId ? clean(task.assigneeId).toLowerCase() : "";
+  const memberNameClean = (currentMemberName ?? "").trim().toLowerCase();
+  const memberEmailClean = (currentUserEmail ?? "").trim().toLowerCase();
+
   const isAssignedToMe = Boolean(
-    currentMemberName && assignedClean && assignedClean === currentMemberName.toLowerCase()
+    (memberNameClean && assignedClean && (
+      assignedClean === memberNameClean ||
+      memberNameClean.includes(assignedClean) ||
+      assignedClean.includes(memberNameClean)
+    )) ||
+    (memberEmailClean && task.assigneeId && (
+      task.assigneeId.toLowerCase() === memberEmailClean ||
+      task.assigneeId.toLowerCase().includes(memberEmailClean)
+    ))
   );
 
   const canMove = isTeamLead || isAssignedToMe;
