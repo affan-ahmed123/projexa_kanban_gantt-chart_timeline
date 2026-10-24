@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactEl
 import {
   ViewHeader,
   getActiveWorkspace,
+  saveActiveWorkspace,
+  getAllWorkspaces,
   getCurrentUser,
   setCurrentUser,
   addMemberToWorkspace,
@@ -111,7 +113,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         };
         setCurrentUser(session);
         setCurrentUserState(session);
-        showToast(`Welcome ${cleanName}! You joined "${targetWs.name}".`);
+        showToast(`Welcome ${cleanName}! You joined "${targetWs?.name || "Workspace"}".`);
         window.history.replaceState({}, document.title, window.location.pathname);
         window.dispatchEvent(new Event("projexa_session_change"));
       }
