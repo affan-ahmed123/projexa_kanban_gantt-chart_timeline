@@ -22,39 +22,81 @@ export const useWorkspaceSocket = ({
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const lastKnownVersionRef = useRef<number>(0);
+  const myLastSentTimestampRef = useRef<number>(0);
 
   const getWsUrl = useCallback(() => {
-    const base = apiBaseUrl && apiBaseUrl.trim() ? apiBaseUrl : "http://localhost:4000";
+    if (typeof window === "undefined") return null;
+    const base = apiBaseUrl && apiBaseUrl.trim() ? apiBaseUrl : "";
+    if (!base) {
+      // In production (e.g. Vercel HTTPS), direct localhost WS will be blocked by mixed-content
+      if (window.location.protocol === "https:") {
+        return null;
+      }
+      return "ws://localhost:4000/ws";
+    }
     return base.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://").replace(/\/+$/, "") + "/ws";
   }, [apiBaseUrl]);
 
-  // Broadcast tasks to server and all connected workspace peers
+  // Broadcast tasks to BroadcastChannel, WebSocket, and Next.js server route
   const broadcastTasks = useCallback(
     (tasks: readonly Task[], action: string = "sync", task?: Task) => {
       if (!workspaceId) return;
+      const now = Date.now();
+      myLastSentTimestampRef.current = now;
 
-      // 1. Send via WebSocket if connected
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(
-          JSON.stringify({
+      // 1. BroadcastChannel: Instant (0ms) sync across tabs/windows on the same machine
+      if (channelRef.current) {
+        try {
+          channelRef.current.postMessage({
             type: "tasks_update",
             workspaceId,
             tasks,
             action,
             task,
-            user: currentUser
-              ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
-              : undefined
-          })
-        );
+            sender: currentUser?.name || currentUser?.email || "Teammate",
+            timestamp: now
+          });
+        } catch {}
       }
 
-      // 2. Fallback persist to Next.js server route
+      // 2. WebSocket: Send if open
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        try {
+          socketRef.current.send(
+            JSON.stringify({
+              type: "tasks_update",
+              workspaceId,
+              tasks,
+              action,
+              task,
+              user: currentUser
+                ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
+                : undefined
+            })
+          );
+        } catch {}
+      }
+
+      // 3. Next.js Server Route: Persist to shared cloud endpoint
       void fetch("/api/workspace-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId, tasks })
-      }).catch(() => {});
+        body: JSON.stringify({
+          workspaceId,
+          tasks,
+          sender: currentUser?.name || currentUser?.email || "Teammate"
+        })
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.version) {
+            lastKnownVersionRef.current = data.version;
+          }
+        })
+        .catch(() => {});
     },
     [workspaceId, currentUser]
   );
@@ -64,82 +106,134 @@ export const useWorkspaceSocket = ({
 
     let isSubscribed = true;
 
-    const connect = () => {
+    // A. Setup BroadcastChannel for 0ms cross-tab & incognito sync
+    if ("BroadcastChannel" in window) {
       try {
-        const url = getWsUrl();
-        const ws = new WebSocket(url);
-        socketRef.current = ws;
-
-        ws.onopen = () => {
+        const channel = new BroadcastChannel(`projexa_sync_${workspaceId}`);
+        channelRef.current = channel;
+        channel.onmessage = (event) => {
           if (!isSubscribed) return;
-          setConnected(true);
-          // Join the workspace channel
-          ws.send(
-            JSON.stringify({
-              type: "join",
-              workspaceId,
-              user: currentUser
-                ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
-                : undefined
-            })
-          );
-
-          // Setup ping interval
-          if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-          pingIntervalRef.current = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "ping" }));
+          const data = event.data;
+          if (data && data.workspaceId === workspaceId && Array.isArray(data.tasks)) {
+            // Ignore own echo if sent within last 300ms
+            if (data.timestamp && Math.abs(Date.now() - data.timestamp) < 200 && data.sender === (currentUser?.name || currentUser?.email)) {
+              return;
             }
-          }, 25000);
+            const normalized = data.tasks.map(normalizeTaskDates);
+            saveWorkspaceTasks(workspaceId, normalized);
+            onTasksUpdated?.(normalized, data.sender || "Live Sync");
+          }
         };
+      } catch {}
+    }
 
-        ws.onmessage = (event) => {
-          if (!isSubscribed) return;
-          try {
-            const data = JSON.parse(event.data);
-            if (data.workspaceId === workspaceId && Array.isArray(data.tasks)) {
-              const normalized = data.tasks.map(normalizeTaskDates);
-              saveWorkspaceTasks(workspaceId, normalized);
-              onTasksUpdated?.(normalized, data.sender);
-            }
-          } catch {}
-        };
+    // B. Setup WebSocket if a valid URL exists
+    const wsUrl = getWsUrl();
+    if (wsUrl) {
+      const connectWs = () => {
+        try {
+          const ws = new WebSocket(wsUrl);
+          socketRef.current = ws;
 
-        ws.onclose = () => {
-          if (!isSubscribed) return;
+          ws.onopen = () => {
+            if (!isSubscribed) return;
+            setConnected(true);
+            ws.send(
+              JSON.stringify({
+                type: "join",
+                workspaceId,
+                user: currentUser
+                  ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
+                  : undefined
+              })
+            );
+
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "ping" }));
+              }
+            }, 25000);
+          };
+
+          ws.onmessage = (event) => {
+            if (!isSubscribed) return;
+            try {
+              const data = JSON.parse(event.data);
+              if (data.workspaceId === workspaceId && Array.isArray(data.tasks)) {
+                const normalized = data.tasks.map(normalizeTaskDates);
+                saveWorkspaceTasks(workspaceId, normalized);
+                onTasksUpdated?.(normalized, data.sender || "WebSocket");
+              }
+            } catch {}
+          };
+
+          ws.onclose = () => {
+            if (!isSubscribed) return;
+            setConnected(false);
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+            reconnectTimeoutRef.current = setTimeout(connectWs, 3000);
+          };
+
+          ws.onerror = () => {
+            ws.close();
+          };
+        } catch {
           setConnected(false);
-          if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-          // Auto reconnect after 2.5s
-          reconnectTimeoutRef.current = setTimeout(connect, 2500);
-        };
+          reconnectTimeoutRef.current = setTimeout(connectWs, 4000);
+        }
+      };
 
-        ws.onerror = () => {
-          ws.close();
-        };
-      } catch {
-        setConnected(false);
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
-      }
-    };
+      connectWs();
+    } else {
+      // If WebSocket is not supported/configured (e.g. Vercel Serverless), mark live sync active
+      setConnected(true);
+    }
 
-    connect();
+    // C. Setup High-Frequency Cloud Polling (Every 1.5s) for live cross-device sync
+    const pollServerTasks = async () => {
+      if (!isSubscribed) return;
+      try {
+        const res = await fetch(`/api/workspace-tasks?workspaceId=${encodeURIComponent(workspaceId)}`, {
+          cache: "no-store",
+          headers: { Pragma: "no-cache" }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isSubscribed || !data || !Array.isArray(data.tasks)) return;
 
-    // Also fetch initial tasks from Next.js server cache if local tasks are empty
-    void fetch(`/api/workspace-tasks?workspaceId=${encodeURIComponent(workspaceId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (isSubscribed && data && Array.isArray(data.tasks) && data.tasks.length > 0) {
+        const serverVersion = typeof data.version === "number" ? data.version : 0;
+        // Check if server version changed and wasn't our own immediate update
+        const isNewer = serverVersion > 0 && serverVersion > lastKnownVersionRef.current;
+        const isNotOurRecentSend = Date.now() - myLastSentTimestampRef.current > 1200;
+
+        if (isNewer && isNotOurRecentSend && data.tasks.length > 0) {
+          lastKnownVersionRef.current = serverVersion;
           const normalized = data.tasks.map(normalizeTaskDates);
           saveWorkspaceTasks(workspaceId, normalized);
-          onTasksUpdated?.(normalized, "Server Sync");
+          onTasksUpdated?.(normalized, data.lastSender || "Cloud Sync");
+        } else if (lastKnownVersionRef.current === 0 && data.tasks.length > 0) {
+          lastKnownVersionRef.current = serverVersion;
+          const normalized = data.tasks.map(normalizeTaskDates);
+          saveWorkspaceTasks(workspaceId, normalized);
+          onTasksUpdated?.(normalized, "Initial Sync");
         }
-      })
-      .catch(() => {});
+      } catch {}
+    };
+
+    // Run immediate check then every 1.5 seconds
+    void pollServerTasks();
+    pollIntervalRef.current = setInterval(pollServerTasks, 1500);
 
     return () => {
       isSubscribed = false;
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (channelRef.current) {
+        channelRef.current.close();
+        channelRef.current = null;
+      }
       if (socketRef.current) {
         socketRef.current.close();
         socketRef.current = null;
