@@ -51,11 +51,21 @@ export const AuthCard = ({
 
   useEffect(() => {
     if (inviteEmail) {
-      setEmail(inviteEmail);
+      const cleanInv = inviteEmail.trim().toLowerCase();
+      setEmail(cleanInv);
       if (inviteName) setName(inviteName);
-      setInfoBanner(
-        `You have been invited as ${inviteRole || "a Team Member"}! Sign in with your registered account or create one.`
-      );
+      const isRegistered = getRegisteredUsers().some((u) => u.email.toLowerCase() === cleanInv);
+      if (isRegistered) {
+        setMode("login");
+        setInfoBanner(
+          `Welcome! Please sign in with your password to access the workspace as ${inviteRole || "a Team Member"}.`
+        );
+      } else {
+        setMode("signup");
+        setInfoBanner(
+          `You've been invited as ${inviteRole || "a Team Member"}! Create your password below to access the workspace.`
+        );
+      }
     }
   }, [inviteEmail, inviteName, inviteRole]);
 
@@ -166,9 +176,24 @@ export const AuthCard = ({
         password,
         role: assignedRole,
         gender: detected === "female" ? "female" : "male",
-        autoLogin: false
+        autoLogin: true
       });
-      if (!regRes.success) { setError(regRes.error || "Failed to save registration."); return; }
+      if (!regRes.success || !regRes.user) {
+        setError(regRes.error || "Failed to save registration.");
+        return;
+      }
+
+      if (onSuccess) {
+        onSuccess({
+          id: regRes.user.id,
+          name: regRes.user.name,
+          email: regRes.user.email,
+          role: regRes.user.role,
+          gender: regRes.user.gender
+        });
+        return;
+      }
+
       setSignupStep("form");
       setVerificationCode("");
       setEmail("");

@@ -180,6 +180,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
           logoutUser();
           setCurrentUserState(null);
           setCurrentUserEmail("");
+          setUserWorkspaces([]);
           setInviteParams(pending);
         } else if (!activeUser) {
           // Member will sign in or register through AuthCard
