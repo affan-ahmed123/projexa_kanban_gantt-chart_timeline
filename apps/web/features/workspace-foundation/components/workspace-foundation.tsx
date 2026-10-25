@@ -174,8 +174,16 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
           switchActiveWorkspace(wsId);
           window.history.replaceState({}, document.title, window.location.pathname);
           refreshWorkspaces();
+        } else if (activeUser && cleanEmail && activeUser.email.toLowerCase() !== cleanEmail) {
+          // If a different user (e.g. Team Lead) is currently logged in,
+          // log them out so the invited team member can sign in/register with their own account.
+          logoutUser();
+          setCurrentUserState(null);
+          setCurrentUserEmail("");
+          setInviteParams(pending);
         } else if (!activeUser) {
           // Member will sign in or register through AuthCard
+          setInviteParams(pending);
         } else {
           refreshWorkspaces();
         }
