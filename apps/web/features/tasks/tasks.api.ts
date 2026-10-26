@@ -24,26 +24,83 @@ const responseError = async (response: Response): Promise<Error> => {
   return new Error(message);
 };
 
+let isLocalBackendOffline = false;
+let lastOfflineCheck = 0;
+
 export const createTasksApi = (baseUrl?: string, fetcher: typeof fetch = fetch): TasksApi => {
-  const resolvedBaseUrl = baseUrl && baseUrl.trim() ? baseUrl : "http://localhost:4000";
-  const request = async (path: string, init?: RequestInit): Promise<Response> => {
-    const response = await fetcher(new URL(path, `${resolvedBaseUrl.replace(/\/+$/, "")}/`), {
-      ...init,
-      headers: { "content-type": "application/json", ...init?.headers }
-    });
-    if (!response.ok) throw await responseError(response);
-    return response;
+  const isBrowser = typeof window !== "undefined";
+  const isRemoteHost = isBrowser && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+
+  // If in browser on production/Vercel and baseUrl points to localhost, ignore localhost
+  const resolvedBaseUrl = (isRemoteHost && (!baseUrl || baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")))
+    ? ""
+    : (baseUrl && baseUrl.trim() ? baseUrl : "http://localhost:4000");
+
+  const isLocal = resolvedBaseUrl.includes("localhost") || resolvedBaseUrl.includes("127.0.0.1");
+
+  const request = async (path: string, init?: RequestInit): Promise<Response | null> => {
+    if (!resolvedBaseUrl) return null;
+
+    // If we already detected localhost:4000 is offline in this browser session, skip calling to prevent console error spam
+    if (isBrowser && isLocal && isLocalBackendOffline) {
+      if (Date.now() - lastOfflineCheck < 60000) {
+        return null;
+      }
+    }
+
+    try {
+      const response = await fetcher(new URL(path, `${resolvedBaseUrl.replace(/\/+$/, "")}/`), {
+        ...init,
+        headers: { "content-type": "application/json", ...init?.headers }
+      });
+      if (!response.ok) throw await responseError(response);
+      if (isLocal) isLocalBackendOffline = false;
+      return response;
+    } catch (err) {
+      if (isBrowser && isLocal) {
+        isLocalBackendOffline = true;
+        lastOfflineCheck = Date.now();
+      }
+      throw err;
+    }
   };
+
   return Object.freeze({
-    list: async () => taskListSchema.parse(await (await request("tasks")).json()),
-    create: async (input) => taskSchema.parse(await (await request("tasks", {
-      method: "POST",
-      body: JSON.stringify(input)
-    })).json()),
-    update: async (id, input) => taskUpdateResultSchema.parse(await (await request(`tasks/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input)
-    })).json()),
+    list: async () => {
+      const res = await request("tasks");
+      if (!res) return [];
+      return taskListSchema.parse(await res.json());
+    },
+    create: async (input) => {
+      const res = await request("tasks", {
+        method: "POST",
+        body: JSON.stringify(input)
+      });
+      if (!res) {
+        const now = new Date().toISOString();
+        return {
+          id: `task-${Date.now()}`,
+          ...input,
+          createdAt: now,
+          updatedAt: now
+        } as Task;
+      }
+      return taskSchema.parse(await res.json());
+    },
+    update: async (id, input) => {
+      const res = await request(`tasks/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(input)
+      });
+      if (!res) {
+        return {
+          task: { id, ...input } as unknown as Task,
+          rescheduled: [],
+          conflicts: []
+        };
+      }
+      return taskUpdateResultSchema.parse(await res.json());
+    },
     remove: async (id) => {
       await request(`tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
     }

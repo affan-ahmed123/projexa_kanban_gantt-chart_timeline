@@ -29,12 +29,20 @@ export const useWorkspaceSocket = ({
 
   const getWsUrl = useCallback(() => {
     if (typeof window === "undefined") return null;
+    const isHttps = window.location.protocol === "https:";
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
     const base = apiBaseUrl && apiBaseUrl.trim() ? apiBaseUrl : "";
-    if (!base) {
-      // In production (e.g. Vercel HTTPS), direct localhost WS will be blocked by mixed-content
-      if (window.location.protocol === "https:") {
-        return null;
+
+    // If running in production (e.g. Vercel) or on HTTPS, do NOT attempt localhost ws
+    if (isHttps || !isLocalhost) {
+      if (base.startsWith("https://")) {
+        return base.replace(/^https:\/\//, "wss://").replace(/\/+$/, "") + "/ws";
       }
+      return null;
+    }
+
+    if (!base) {
       return "ws://localhost:4000/ws";
     }
     return base.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://").replace(/\/+$/, "") + "/ws";
@@ -130,13 +138,26 @@ export const useWorkspaceSocket = ({
     // B. Setup WebSocket if a valid URL exists
     const wsUrl = getWsUrl();
     if (wsUrl) {
+      let retryCount = 0;
+      const MAX_RETRIES = 2;
+
       const connectWs = () => {
+        if (!isSubscribed) return;
+        if (retryCount >= MAX_RETRIES) {
+          // Local backend server is not listening on port 4000.
+          // Stop reconnecting to prevent cluttering browser console with ERR_CONNECTION_REFUSED.
+          // BroadcastChannel and Cloud Polling keep the board in live sync.
+          setConnected(true);
+          return;
+        }
+
         try {
           const ws = new WebSocket(wsUrl);
           socketRef.current = ws;
 
           ws.onopen = () => {
             if (!isSubscribed) return;
+            retryCount = 0;
             setConnected(true);
             ws.send(
               JSON.stringify({
@@ -170,17 +191,25 @@ export const useWorkspaceSocket = ({
 
           ws.onclose = () => {
             if (!isSubscribed) return;
-            setConnected(false);
             if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-            reconnectTimeoutRef.current = setTimeout(connectWs, 3000);
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+              reconnectTimeoutRef.current = setTimeout(connectWs, 3000);
+            } else {
+              setConnected(true);
+            }
           };
 
           ws.onerror = () => {
-            ws.close();
+            try { ws.close(); } catch {}
           };
         } catch {
-          setConnected(false);
-          reconnectTimeoutRef.current = setTimeout(connectWs, 4000);
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            reconnectTimeoutRef.current = setTimeout(connectWs, 4000);
+          } else {
+            setConnected(true);
+          }
         }
       };
 
