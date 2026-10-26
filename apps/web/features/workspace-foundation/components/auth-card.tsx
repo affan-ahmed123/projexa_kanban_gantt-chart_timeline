@@ -5,6 +5,7 @@ import { CheckCircle2, LogIn, Sparkles, UserPlus } from "lucide-react";
 import {
   authenticateUser,
   getRegisteredUsers,
+  isUserRegistered,
   registerUser,
   type UserSession,
   type WorkspaceMember
@@ -45,7 +46,7 @@ export const AuthCard = ({
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [infoBanner, setInfoBanner] = useState<string | null>(
     inviteEmail
-      ? `You have been invited as ${inviteRole || "a Team Member"}! Sign in with your registered account or create one.`
+      ? `You have been invited as ${inviteRole || "a Team Member"}! Create your account and password to access the workspace.`
       : null
   );
 
@@ -54,16 +55,17 @@ export const AuthCard = ({
       const cleanInv = inviteEmail.trim().toLowerCase();
       setEmail(cleanInv);
       if (inviteName) setName(inviteName);
-      const isRegistered = getRegisteredUsers().some((u) => u.email.toLowerCase() === cleanInv);
+      const isRegistered = isUserRegistered(cleanInv);
       if (isRegistered) {
         setMode("login");
         setInfoBanner(
-          `Welcome! Please sign in with your password to access the workspace as ${inviteRole || "a Team Member"}.`
+          `Welcome back! Please sign in with your password to access the workspace as ${inviteRole || "a Team Member"}.`
         );
       } else {
         setMode("signup");
+        setSignupStep("form");
         setInfoBanner(
-          `You've been invited as ${inviteRole || "a Team Member"}! Create your password below to access the workspace.`
+          `You've been invited as ${inviteRole || "a Team Member"}! Create your account and password below to access the workspace.`
         );
       }
     }
@@ -99,7 +101,7 @@ export const AuthCard = ({
     if (!cleanEmail || !cleanEmail.includes("@")) { setError("Please enter a valid email address."); return; }
     if (!cleanName) { setError("Please enter your full name."); return; }
     if (!password || password.length < 4) { setError("Please create a password with at least 4 characters."); return; }
-    if (getRegisteredUsers().some((u) => u.email.toLowerCase() === cleanEmail)) {
+    if (isUserRegistered(cleanEmail)) {
       setError("An account with this email already exists. Please sign in instead.");
       return;
     }

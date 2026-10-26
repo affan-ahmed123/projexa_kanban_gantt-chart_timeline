@@ -12,6 +12,7 @@ type TaskCardProps = Readonly<{
   onStatusChange: (id: string, status: TaskStatus) => void;
   currentMemberName?: string | undefined;
   currentUserEmail?: string | undefined;
+  currentUserId?: string | undefined;
   isTeamLead: boolean;
 }>;
 
@@ -21,6 +22,7 @@ export const TaskBoardCard = ({
   onStatusChange,
   currentMemberName,
   currentUserEmail,
+  currentUserId,
   isTeamLead
 }: TaskCardProps): ReactElement => {
   const [deleting, setDeleting] = useState(false);
@@ -32,6 +34,7 @@ export const TaskBoardCard = ({
   const assignedClean = task.assigneeId ? clean(task.assigneeId).toLowerCase() : "";
   const memberNameClean = (currentMemberName ?? "").trim().toLowerCase();
   const memberEmailClean = (currentUserEmail ?? "").trim().toLowerCase();
+  const memberIdClean = (currentUserId ?? "").trim().toLowerCase();
 
   const isAssignedToMe = Boolean(
     (memberNameClean && assignedClean && (
@@ -42,6 +45,9 @@ export const TaskBoardCard = ({
     (memberEmailClean && task.assigneeId && (
       task.assigneeId.toLowerCase() === memberEmailClean ||
       task.assigneeId.toLowerCase().includes(memberEmailClean)
+    )) ||
+    (memberIdClean && task.assigneeId && (
+      task.assigneeId.toLowerCase() === memberIdClean
     ))
   );
 

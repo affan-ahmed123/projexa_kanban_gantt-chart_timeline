@@ -259,8 +259,10 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const assignedClean = previous.assigneeId ? clean(previous.assigneeId).toLowerCase() : "";
     const memberNameClean = (currentUser?.name ?? "").trim().toLowerCase();
     const memberEmailClean = (currentUser?.email ?? "").trim().toLowerCase();
+    const memberIdClean = (currentUser?.id ?? "").trim().toLowerCase();
 
     const isAssignedToMe = Boolean(
+      (memberIdClean && previous.assigneeId && previous.assigneeId.toLowerCase() === memberIdClean) ||
       (memberNameClean && assignedClean && (
         assignedClean === memberNameClean ||
         memberNameClean.includes(assignedClean) ||
@@ -383,6 +385,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
             column={col}
             currentMemberName={currentUser?.name}
             currentUserEmail={currentUser?.email}
+            currentUserId={currentUser?.id}
             drop={handleDrop}
             isDragOver={dragOverColumn === col.status}
             isSingleMobileView={mobileColumnTab !== "all"}

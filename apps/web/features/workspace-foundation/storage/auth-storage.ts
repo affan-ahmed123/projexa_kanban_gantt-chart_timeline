@@ -23,44 +23,18 @@ export const getRegisteredUsers = (): StoredUser[] => {
   try {
     const raw = localStorage.getItem("projexa_registered_users");
     const list: StoredUser[] = raw ? JSON.parse(raw) : [];
-
-    // Also collect from workspaces in localStorage if available
-    const wsRaw = localStorage.getItem("projexa_workspaces") || localStorage.getItem("nutsyll_workspaces");
-    if (wsRaw) {
-      const workspaces = JSON.parse(wsRaw);
-      if (Array.isArray(workspaces)) {
-        for (const ws of workspaces) {
-          if (ws?.teamLead?.email && !list.some((u) => u.email.toLowerCase() === ws.teamLead.email.toLowerCase())) {
-            list.push({
-              id: "usr-" + ws.id,
-              name: ws.teamLead.name || "Team Lead",
-              email: ws.teamLead.email,
-              role: "Owner",
-              gender: ws.teamLead.gender || "male",
-              createdAt: ws.createdAt || new Date().toISOString()
-            });
-          }
-          if (Array.isArray(ws?.members)) {
-            for (const m of ws.members) {
-              if (m?.email && !list.some((u) => u.email.toLowerCase() === m.email.toLowerCase())) {
-                list.push({
-                  id: m.id,
-                  name: m.name,
-                  email: m.email,
-                  role: m.role || "Developer",
-                  gender: m.gender || "male",
-                  createdAt: ws.createdAt || new Date().toISOString()
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-    return list;
+    // Only users with an actual password (at least 4 characters) are registered accounts!
+    return list.filter((u) => typeof u.password === "string" && u.password.trim().length >= 4);
   } catch {
     return [];
   }
+};
+
+export const isUserRegistered = (email?: string | null): boolean => {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  const users = getRegisteredUsers();
+  return users.some((u) => u.email.toLowerCase() === cleanEmail && typeof u.password === "string" && u.password.trim().length >= 4);
 };
 
 export const getCurrentUser = (): UserSession | null => {
@@ -168,7 +142,7 @@ export const authenticateUser = (
   const matched = users.find((u) => u.email.toLowerCase() === cleanEmail);
 
   if (matched) {
-    if (matched.password && password && matched.password !== password.trim()) {
+    if (!matched.password || !password || matched.password !== password.trim()) {
       return { success: false, error: "Incorrect password. Please try again." };
     }
 
@@ -176,7 +150,7 @@ export const authenticateUser = (
       id: matched.id,
       name: matched.name,
       email: matched.email,
-      role: matched.role || "Owner",
+      role: matched.role || "Developer",
       gender: matched.gender
     };
     setCurrentUser(session);
@@ -184,15 +158,10 @@ export const authenticateUser = (
     return { success: true, user: session };
   }
 
-  const defaultName = cleanEmail.split("@")[0] || "User";
-  const displayName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
-  return registerUser({
-    name: displayName,
-    email: cleanEmail,
-    password: password || "",
-    role: "Owner",
-    gender: "male"
-  });
+  return {
+    success: false,
+    error: "No account found with this email. Please sign up to create your account."
+  };
 };
 
 export const deleteUserAccount = (email: string): { success: boolean; error?: string } => {

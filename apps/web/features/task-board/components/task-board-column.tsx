@@ -19,6 +19,7 @@ type TaskColumnProps = Readonly<{
   isSingleMobileView?: boolean;
   currentMemberName?: string | undefined;
   currentUserEmail?: string | undefined;
+  currentUserId?: string | undefined;
   isTeamLead: boolean;
 }>;
 
@@ -35,6 +36,7 @@ export const TaskBoardColumn = ({
   isSingleMobileView = false,
   currentMemberName,
   currentUserEmail,
+  currentUserId,
   isTeamLead
 }: TaskColumnProps): ReactElement => {
   const pct = totalTasks > 0 ? Math.round((tasks.length / totalTasks) * 100) : 0;
