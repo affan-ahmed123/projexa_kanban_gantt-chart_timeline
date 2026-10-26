@@ -2,12 +2,12 @@
   "name": "web",
   "type": "app",
   "description": "Primary Next.js web application.",
-  "internalDependencies": ["eslint-config", "tsconfig", "ui"],
+  "internalDependencies": ["eslint-config", "tsconfig", "types", "ui"],
   "externalDependencies": ["lucide-react", "next", "react", "react-dom", "tailwindcss", "zod"],
   "capabilities": ["web", "app-router", "kanban", "gantt-chart", "task-scheduling", "shadcn-ui", "tailwind"],
   "tasks": {
     "dev": { "command": "pnpm run dev", "cache": false },
-    "build": { "command": "pnpm run build", "outputs": [".next"], "environment": ["NEXT_PUBLIC_API_BASE_URL"], "cache": true },
+    "build": { "command": "pnpm run build", "dependsOn": ["types:build", "ui:build"], "outputs": [".next"], "environment": ["NEXT_PUBLIC_API_BASE_URL"], "cache": true },
     "test": { "command": "pnpm test", "cache": false },
     "lint": { "command": "pnpm run lint", "cache": false },
     "typecheck": { "command": "pnpm run typecheck", "cache": false }
