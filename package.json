@@ -10,7 +10,7 @@
     "tasks": "node codebase/cli/repo.mjs tasks",
     "affected": "node codebase/cli/repo.mjs affected",
     "dev": "node codebase/cli/repo.mjs run dev --concurrency 2",
-    "build": "node codebase/cli/repo.mjs build --concurrency 2",
+    "build": "pnpm --filter @workspace/types build && pnpm --filter @workspace/ui build && node codebase/cli/repo.mjs build --concurrency 2",
     "repo:test": "node codebase/cli/repo.mjs test",
     "test:control-plane": "node --test codebase/**/*.test.mjs",
     "test:units": "node codebase/cli/repo.mjs test --concurrency 2",

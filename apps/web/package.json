@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "prebuild": "pnpm --filter @workspace/types build && pnpm --filter @workspace/ui build",
+    "build": "pnpm --filter @workspace/types build && pnpm --filter @workspace/ui build && next build",
     "start": "next start",
     "test": "tsx --test tests/environment.test.ts tests/unit/avatar.test.ts tests/unit/gantt-chart.model.test.ts tests/unit/gantt-chart.helpers.test.ts tests/unit/timeline.model.test.ts tests/unit/workspace-storage.test.ts tests/unit/invitation.test.ts tests/unit/task-board.helpers.test.ts tests/integration/home-page.test.tsx tests/integration/board-page.test.tsx tests/integration/gantt-page.test.tsx tests/integration/timeline-page.test.tsx tests/integration/tasks-api.test.ts",
     "lint": "eslint .",
