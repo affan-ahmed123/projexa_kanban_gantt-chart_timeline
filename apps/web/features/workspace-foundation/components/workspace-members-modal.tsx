@@ -64,32 +64,32 @@ export const WorkspaceMembersModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-2xl border border-slate-300 bg-white shadow-2xl dark:border-[#20314a] dark:bg-[#121c2d] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg my-auto max-h-[92vh] flex flex-col rounded-2xl border border-slate-300 bg-white shadow-2xl dark:border-[#20314a] dark:bg-[#121c2d] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-[#20314a] dark:bg-[#172438]">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300">
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 sm:px-5 py-3.5 sm:py-4 dark:border-[#20314a] dark:bg-[#172438]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300">
               <Users className="size-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Workspace Members</h3>
-                <span className="rounded-full bg-cyan-100 dark:bg-cyan-950/80 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 dark:text-cyan-300 border border-cyan-300/40">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">Workspace Members</h3>
+                <span className="shrink-0 rounded-full bg-cyan-100 dark:bg-cyan-950/80 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 dark:text-cyan-300 border border-cyan-300/40">
                   {totalMembersCount} {totalMembersCount === 1 ? "member" : "members"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{workspace.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{workspace.name}</p>
             </div>
           </div>
           <button
             aria-label="Close modal"
-            className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            className="shrink-0 flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
             onClick={onClose}
             type="button"
           >
@@ -98,20 +98,20 @@ export const WorkspaceMembersModal = ({
         </div>
 
         {/* Current user mode banner */}
-        <div className="bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent border-b border-cyan-500/20 px-5 py-2.5 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
+        <div className="shrink-0 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent border-b border-cyan-500/20 px-4 sm:px-5 py-2.5 flex flex-col xs:flex-row xs:items-center justify-between gap-1 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
             <UserCheck className="size-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
-            <span className="text-slate-700 dark:text-slate-300 font-medium">
+            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
               You are joined as: <strong className="text-cyan-700 dark:text-cyan-300">{myRole}</strong>
             </span>
           </div>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
             {isTeamLead ? "Full Board Control" : "Drag & drop your own tasks"}
           </span>
         </div>
 
         {/* Member List */}
-        <div className="max-h-[380px] overflow-y-auto p-5 space-y-3">
+        <div className="overflow-y-auto max-h-[calc(92vh-170px)] p-4 sm:p-5 space-y-3">
           {/* Team Lead */}
           {!leadAlreadyInMembers && (
             <div className="flex items-center justify-between rounded-xl border border-amber-300/60 bg-amber-50/50 p-3 dark:border-amber-500/30 dark:bg-amber-950/15">

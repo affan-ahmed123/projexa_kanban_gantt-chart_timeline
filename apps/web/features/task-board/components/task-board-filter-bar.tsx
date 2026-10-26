@@ -43,7 +43,7 @@ export const TaskBoardFilterBar = ({
           <div className="relative w-full sm:min-w-[220px] sm:max-w-sm sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-9.5 w-full rounded-xl border border-slate-300 bg-slate-50/80 pl-8.5 pr-8 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-500 focus:bg-white focus:ring-1 focus:ring-slate-400 dark:border-[#293d5c] dark:bg-[#172438] dark:text-white placeholder:dark:text-slate-500"
+              className="h-9.5 w-full rounded-xl border border-slate-300 bg-slate-50/80 pl-8.5 pr-8 text-xs font-medium text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-1 focus:ring-cyan-400 dark:border-[#293d5c] dark:bg-[#172438] dark:text-white dark:placeholder:text-slate-400"
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tasks..."
               type="search"
@@ -66,10 +66,10 @@ export const TaskBoardFilterBar = ({
 
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2.5">
             <div className="relative">
-              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-400" />
               <select
                 aria-label="Filter by member"
-                className="h-9.5 w-full sm:w-[155px] appearance-none rounded-xl border border-slate-300 bg-slate-50/80 pl-8 pr-7 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+                className="h-9.5 w-full sm:w-[155px] appearance-none rounded-xl border border-slate-300 bg-slate-50/80 pl-8 pr-7 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
                 onChange={(e) => setAssignee(e.target.value)}
                 value={assignee}
               >
@@ -86,7 +86,7 @@ export const TaskBoardFilterBar = ({
             <div className="relative">
               <select
                 aria-label="Filter by status"
-                className="h-9.5 w-full sm:w-[145px] appearance-none rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+                className="h-9.5 w-full sm:w-[145px] appearance-none rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
                 onChange={(e) => setStatusFilter(e.target.value)}
                 value={statusFilter}
               >

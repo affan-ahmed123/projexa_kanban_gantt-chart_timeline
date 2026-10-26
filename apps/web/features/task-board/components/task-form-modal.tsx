@@ -63,10 +63,10 @@ export const TaskFormModal = ({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Title</label>
+        <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Title</label>
         <input
           autoFocus
-          className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white focus:ring-1 focus:ring-slate-400 dark:border-[#293d5c] dark:bg-[#172438] dark:text-white"
+          className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-1 focus:ring-cyan-400 dark:border-[#293d5c] dark:bg-[#172438] dark:text-white dark:placeholder:text-slate-400"
           maxLength={200}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What needs to be done?"
@@ -75,11 +75,11 @@ export const TaskFormModal = ({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Status</label>
+          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Status</label>
           <select
-            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
             onChange={(e) => setStatus(e.target.value as TaskStatus)}
             value={status}
           >
@@ -91,9 +91,9 @@ export const TaskFormModal = ({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Assignee</label>
+          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Assignee</label>
           <select
-            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
             onChange={(e) => {
               const val = e.target.value;
               setAssignee(val);
@@ -113,20 +113,20 @@ export const TaskFormModal = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Start Date</label>
+          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Start Date</label>
           <input
-            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
             onChange={(e) => setStart(e.target.value)}
             type="date"
             value={start}
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Due Date</label>
+          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Due Date</label>
           <input
-            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
             onChange={(e) => setDue(e.target.value)}
             type="date"
             value={due}

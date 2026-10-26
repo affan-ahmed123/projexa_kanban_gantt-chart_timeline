@@ -337,15 +337,15 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
         <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
           {userWorkspaces.length > 0 ? (
             <>
-              <div className="relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm text-slate-900 dark:border-2 dark:border-cyan-400/50 dark:bg-gradient-to-r dark:from-[#072d3f] dark:via-[#0c4a63] dark:to-[#0e6382] dark:text-white">
+              <div className="relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 shadow-sm text-slate-900 dark:border-2 dark:border-cyan-400/50 dark:bg-gradient-to-r dark:from-[#072d3f] dark:via-[#0c4a63] dark:to-[#0e6382] dark:text-white">
                 <div>
                   <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-800 mb-2.5 shadow-2xs dark:border-cyan-300/70 dark:bg-cyan-950/80 dark:text-cyan-200">
                     <FolderGit2 className="size-3.5" /><span>Your Active Workspaces</span>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Team Workspaces ({userWorkspaces.length})</h1>
+                  <h1 className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Team Workspaces ({userWorkspaces.length})</h1>
                   <p className="text-xs sm:text-sm text-slate-600 dark:text-cyan-100/80 mt-1">Each workspace provides isolated task databases, Team Lead controls, and live members.</p>
                 </div>
-                <button className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-600 bg-gradient-to-r from-[#072d3f] via-[#0c4a63] to-[#0891b2] px-6 py-3.5 text-xs sm:text-sm font-extrabold text-white cursor-pointer" onClick={handleOpenCreateWorkspace} type="button">
+                <button className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-600 bg-gradient-to-r from-[#072d3f] via-[#0c4a63] to-[#0891b2] px-6 py-3.5 text-xs sm:text-sm font-extrabold text-white cursor-pointer" onClick={handleOpenCreateWorkspace} type="button">
                   <Plus className="size-4 text-cyan-100" /><span>Create Workspace</span><ArrowRight className="size-3.5 text-cyan-200" />
                 </button>
               </div>

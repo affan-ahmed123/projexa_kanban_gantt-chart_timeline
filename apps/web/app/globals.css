@@ -222,3 +222,27 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* High-visibility Night Mode / Dark Mode Input Colors */
+.dark input,
+.dark textarea,
+.dark select {
+  color-scheme: dark;
+}
+
+.dark input:not([class*="dark:text-cyan-"]):not([class*="dark:text-amber-"]):not([class*="dark:text-emerald-"]):not([class*="dark:text-rose-"]),
+.dark textarea:not([class*="dark:text-cyan-"]):not([class*="dark:text-amber-"]):not([class*="dark:text-emerald-"]):not([class*="dark:text-rose-"]),
+.dark select:not([class*="dark:text-cyan-"]):not([class*="dark:text-amber-"]):not([class*="dark:text-emerald-"]):not([class*="dark:text-rose-"]) {
+  color: #ffffff !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+.dark select option {
+  background-color: #061c27 !important;
+  color: #ffffff !important;
+}
+

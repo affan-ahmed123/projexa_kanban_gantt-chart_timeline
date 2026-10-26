@@ -130,10 +130,10 @@ export const ViewHeader = ({
           <span className="font-semibold text-white capitalize dark:text-slate-200">{activeView}</span>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 justify-end">
           {/* View Team Members Button */}
           <button
-            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-100 hover:text-white px-3 py-1 text-xs font-medium transition-all shadow-2xs backdrop-blur-xs cursor-pointer active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-100 hover:text-white px-2.5 sm:px-3 py-1 text-xs font-medium transition-all shadow-2xs backdrop-blur-xs cursor-pointer active:scale-95"
             onClick={() => setMembersModalOpen(true)}
             title="View workspace members directory and roles"
             type="button"
@@ -151,7 +151,7 @@ export const ViewHeader = ({
           />
           <ThemeToggle />
           {taskCount !== undefined && (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-normal text-slate-700 shadow-2xs backdrop-blur-xs dark:border-[#243a57] dark:bg-[#182638] dark:text-slate-300 dark:shadow-none">
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-normal text-slate-700 shadow-2xs backdrop-blur-xs dark:border-[#243a57] dark:bg-[#182638] dark:text-slate-300 dark:shadow-none">
               <Activity className="size-3 text-cyan-600 dark:text-slate-400" />
               <span>{taskCount} {taskCount === 1 ? "task" : "tasks"}</span>
             </div>
