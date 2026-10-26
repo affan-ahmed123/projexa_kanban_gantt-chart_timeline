@@ -241,6 +241,15 @@ input:-webkit-autofill:active {
   opacity: 1;
 }
 
+/* NEVER allow inputs/selects to turn bright white on focus in dark mode */
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #172438 !important;
+  color: #ffffff !important;
+  border-color: #06b6d4 !important;
+}
+
 .dark select option {
   background-color: #061c27 !important;
   color: #ffffff !important;

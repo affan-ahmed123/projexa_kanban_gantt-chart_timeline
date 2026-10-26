@@ -46,7 +46,7 @@ export const SignupForm = ({
             autoComplete="off"
             autoCorrect="off"
             autoFocus
-            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-3.5 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
+            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-3.5 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
             data-lpignore="true"
             id="projexa_signup_fullname"
             name="projexa_signup_fullname"
@@ -70,7 +70,7 @@ export const SignupForm = ({
             autoCapitalize="none"
             autoComplete="off"
             autoCorrect="off"
-            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-3.5 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
+            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-3.5 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
             data-1p-ignore="true"
             data-form-type="other"
             data-lpignore="true"
@@ -94,7 +94,7 @@ export const SignupForm = ({
           <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-cyan-300/60" />
           <input
             autoComplete="new-password"
-            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-10 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
+            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-10 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition shadow-xs focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300"
             data-1p-ignore="true"
             data-form-type="other"
             data-lpignore="true"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { Briefcase, CheckCircle2, Crown, Mail, Rocket, Send, Shield, Target, User, Wrench, X, Zap } from "lucide-react";
 import {
   addMemberToWorkspace,
@@ -40,6 +41,8 @@ export const InviteModal = ({
   currentUserEmail,
   currentUserName
 }: InviteModalProps): ReactElement | null => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<WorkspaceMember["role"]>("Developer");
@@ -53,7 +56,7 @@ export const InviteModal = ({
 
   useEffect(() => { setMembersList(workspace.members || []); }, [workspace.members]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const leadName = currentUserName || workspace.teamLead?.name || "Team Lead";
   const leadEmail = currentUserEmail || workspace.teamLead?.email || "lead@workspace.com";
@@ -106,7 +109,7 @@ export const InviteModal = ({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150" onClick={onClose}>
       <div className="w-full max-w-lg my-auto max-h-[92vh] flex flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl text-slate-900 relative overflow-hidden dark:border-2 dark:border-cyan-400/50 dark:bg-gradient-to-b dark:from-[#082939]/98 dark:via-[#061e2b]/98 dark:to-[#041520]/98 dark:text-white" onClick={(e) => e.stopPropagation()}>
         <div className="hidden dark:block pointer-events-none absolute top-0 left-0 right-0 h-[2px] overflow-hidden z-10">
@@ -140,7 +143,7 @@ export const InviteModal = ({
               <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-cyan-100">Colleague's Email Address <span className="text-rose-500">*</span></label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cyan-700 dark:text-cyan-300/60" />
-                <input autoFocus className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300" onChange={(e) => setEmail(e.target.value)} placeholder="colleague@company.com" required type="email" value={email} />
+                <input autoFocus className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] focus:ring-1 focus:ring-cyan-500 dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300" onChange={(e) => setEmail(e.target.value)} placeholder="colleague@company.com" required type="email" value={email} />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -148,12 +151,12 @@ export const InviteModal = ({
                 <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-cyan-100">Full Name (Optional)</label>
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cyan-700 dark:text-cyan-300/60" />
-                  <input className="h-9.5 w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-cyan-600 focus:bg-white dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300" onChange={(e) => setName(e.target.value)} placeholder="e.g. Farhan Ali" type="text" value={name} />
+                  <input className="h-9.5 w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:placeholder-cyan-300/40 dark:focus:border-cyan-300" onChange={(e) => setName(e.target.value)} placeholder="e.g. Farhan Ali" type="text" value={name} />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-cyan-100">Assign Role</label>
-                <select className="h-9.5 w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-600 cursor-pointer dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:focus:border-cyan-300" onChange={(e) => setRole(e.target.value as WorkspaceMember["role"])} value={role}>
+                <select className="h-9.5 w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] cursor-pointer dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:focus:border-cyan-300" onChange={(e) => setRole(e.target.value as WorkspaceMember["role"])} value={role}>
                   <option value="Developer">Developer</option><option value="Designer">Designer</option><option value="Product Manager">Product Manager</option><option value="QA">QA / Tester</option><option value="Admin">Admin</option>
                 </select>
               </div>
@@ -188,6 +191,7 @@ export const InviteModal = ({
           <InviteMembersRoster leadEmail={leadEmail} membersList={membersList} onRemoveMember={handleRemoveMember} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,7 +1,8 @@
 "use client";
 
 import { Crown, Mail, Shield, User, UserCheck, Users, X } from "lucide-react";
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { getAvatarUrl } from "../utils/profile-avatar";
 import type { Workspace, WorkspaceMember } from "../storage/workspace-storage";
 import type { UserSession } from "../storage/auth-storage";
@@ -39,7 +40,10 @@ export const WorkspaceMembersModal = ({
   currentUser,
   onOpenInvite
 }: WorkspaceMembersModalProps): ReactElement | null => {
-  if (!isOpen || !workspace) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!isOpen || !workspace || !mounted) return null;
 
   const isTeamLead = Boolean(
     currentUser &&
@@ -62,7 +66,7 @@ export const WorkspaceMembersModal = ({
     ? "Team Lead (Owner)"
     : (membersList.find((m) => m.email.toLowerCase() === currentUser?.email.toLowerCase())?.role || "Developer");
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in"
       onClick={onClose}
@@ -222,6 +226,7 @@ export const WorkspaceMembersModal = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

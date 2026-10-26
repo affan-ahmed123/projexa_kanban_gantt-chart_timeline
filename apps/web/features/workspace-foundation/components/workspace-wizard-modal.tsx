@@ -103,7 +103,7 @@ export const WorkspaceWizardModal = ({
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-cyan-100">Workspace Name</label>
             <input
-              className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-xs sm:text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-600 focus:bg-white dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:focus:border-cyan-300"
+              className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-xs sm:text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-600 focus:bg-white dark:focus:bg-[#041822] dark:border-cyan-400/40 dark:bg-[#041822]/80 dark:text-white dark:focus:border-cyan-300"
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Phoenix Mobile App Team"
               type="text"

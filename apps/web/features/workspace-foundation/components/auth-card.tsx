@@ -178,31 +178,18 @@ export const AuthCard = ({
         password,
         role: assignedRole,
         gender: detected === "female" ? "female" : "male",
-        autoLogin: true
+        autoLogin: false
       });
       if (!regRes.success || !regRes.user) {
         setError(regRes.error || "Failed to save registration.");
         return;
       }
 
-      if (onSuccess) {
-        onSuccess({
-          id: regRes.user.id,
-          name: regRes.user.name,
-          email: regRes.user.email,
-          role: regRes.user.role,
-          gender: regRes.user.gender
-        });
-        return;
-      }
-
       setSignupStep("form");
       setVerificationCode("");
-      setEmail("");
-      setName("");
       setPassword("");
       setMode("login");
-      setSuccessBanner("🎉 Successfully registered! Please log in with your email and password.");
+      setSuccessBanner("🎉 Account verified successfully! Please enter your password to sign in.");
     } catch {
       setSubmitting(false);
       setError("Network error during code verification. Please try again.");
