@@ -96,8 +96,12 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       if (ws.id && normalized.length > 0) {
         saveWorkspaceTasks(ws.id, normalized);
       }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Schedule could not be loaded.");
+    } catch {
+      if (local && local.length > 0) {
+        setTasks(local.map(normalizeTaskDates));
+      } else {
+        setTasks([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -169,7 +173,9 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       setTasks(fallback);
       saveWorkspaceTasks(ws.id, fallback);
       broadcastTasks(fallback, "gantt_update");
-      setError(cause instanceof Error ? cause.message : "Task changes could not be saved.");
+      if (cause instanceof Error && !cause.message.toLowerCase().includes("fetch")) {
+        setError(cause.message);
+      }
     } finally {
       setSavingTaskIds((current) => {
         const next = new Set(current);

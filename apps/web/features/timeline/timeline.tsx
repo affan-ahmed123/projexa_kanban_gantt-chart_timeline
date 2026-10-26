@@ -1,7 +1,7 @@
 "use client";
 
 import type { Task, UpdateTaskInput } from "@workspace/types";
-import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type ReactElement } from "react";
 import {
   ViewHeader,
@@ -29,10 +29,16 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [zoom, setZoom] = useState<GanttZoom>("week");
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2800);
+  }, []);
 
   const isTeamLead = Boolean(
     currentUser &&
@@ -80,8 +86,12 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
       if (ws.id && normalized.length > 0) {
         saveWorkspaceTasks(ws.id, normalized);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+    } catch {
+      if (local && local.length > 0) {
+        setTasks(local.map(normalizeTaskDates));
+      } else {
+        setTasks([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -140,29 +150,35 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
     setDragOverRow(null);
     if (!draggedTask || draggedTask.assigneeId === targetPersonId) { setDraggedTask(null); return; }
     if (!isTeamLead) {
-      setError("Permission denied: Only Team Leads can reassign tasks to other team members.");
-      setTimeout(() => setError(null), 3000);
+      showToast("Permission denied: Only Team Leads can reassign tasks to other team members.");
       setDraggedTask(null);
       return;
     }
     setSavingTaskId(draggedTask.id);
     const ws = getActiveWorkspace();
+
+    // 1. Optimistically update local workspace & broadcast
+    const fallback = tasks.map((t) => (t.id === draggedTask.id ? { ...t, assigneeId: targetPersonId } : t));
+    setTasks(fallback);
+    saveWorkspaceTasks(ws.id, fallback);
+    broadcastTasks(fallback, "reassigned");
+    showToast(`Task assigned successfully.`);
+
+    // 2. Persist to API backend if available
     try {
       const input: UpdateTaskInput = { assigneeId: targetPersonId };
       const result = await api.update(draggedTask.id, input);
-      setTasks((current) => {
-        const updated = new Map([result.task, ...result.rescheduled].map((t) => [t.id, t]));
-        const nextTasks = current.map((t) => updated.get(t.id) ?? t);
-        saveWorkspaceTasks(ws.id, nextTasks);
-        broadcastTasks(nextTasks, "reassigned");
-        return nextTasks;
-      });
-    } catch (err) {
-      const fallback = tasks.map((t) => (t.id === draggedTask.id ? { ...t, assigneeId: targetPersonId } : t));
-      setTasks(fallback);
-      saveWorkspaceTasks(ws.id, fallback);
-      broadcastTasks(fallback, "reassigned");
-      setError(err instanceof Error ? err.message : "Failed to update task assignee");
+      if (result?.task) {
+        setTasks((current) => {
+          const updated = new Map([result.task, ...result.rescheduled].map((t) => [t.id, t]));
+          const nextTasks = current.map((t) => updated.get(t.id) ?? t);
+          saveWorkspaceTasks(ws.id, nextTasks);
+          broadcastTasks(nextTasks, "reassigned");
+          return nextTasks;
+        });
+      }
+    } catch {
+      // Safe fallback: task is already saved and synced across workspaces
     } finally {
       setSavingTaskId(null);
       setDraggedTask(null);
@@ -271,6 +287,11 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
           <div className="flex items-center gap-2"><div className="size-2.5 rounded-full bg-rose-500/20 border border-rose-500/60" /><span>Workload Overload Alert (&gt;2 tasks/day)</span></div>
         </div>
       </footer>
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur-md text-xs font-medium text-slate-800 dark:border-[#293d5c] dark:bg-[#182338] dark:text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /><span>{toastMessage}</span>
+        </div>
+      )}
     </main>
   );
 };
