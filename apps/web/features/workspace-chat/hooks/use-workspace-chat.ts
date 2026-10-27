@@ -95,11 +95,18 @@ export const useWorkspaceChat = ({
     const local = loadLocalChatMessages(workspaceId);
     if (local.length > 0) {
       setMessages(local);
+      // Synchronize local messages to cloud endpoint so other workspace members receive them
+      void fetch("/api/workspace-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, messages: local })
+      }).catch(() => {});
     }
 
     try {
       const res = await fetch(`/api/workspace-chat?workspaceId=${encodeURIComponent(workspaceId)}`, {
-        cache: "no-store"
+        cache: "no-store",
+        headers: { Pragma: "no-cache", "Cache-Control": "no-cache" }
       });
       if (res.ok) {
         const data = await res.json();
@@ -112,7 +119,7 @@ export const useWorkspaceChat = ({
     }
   }, [workspaceId, mergeIncomingMessages]);
 
-  // WebSocket & BroadcastChannel setup
+  // WebSocket, BroadcastChannel & Cloud Polling setup
   useEffect(() => {
     if (!workspaceId || typeof window === "undefined") return;
 
@@ -240,8 +247,38 @@ export const useWorkspaceChat = ({
       setIsConnected(true);
     }
 
+    // 3. High-Frequency Cloud Polling for live cross-device / multi-user sync on Vercel
+    const pollServerChat = async () => {
+      if (!isSubscribed) return;
+      try {
+        const res = await fetch(`/api/workspace-chat?workspaceId=${encodeURIComponent(workspaceId)}`, {
+          cache: "no-store",
+          headers: { Pragma: "no-cache", "Cache-Control": "no-cache" }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isSubscribed || !data) return;
+
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          mergeIncomingMessages(data.messages as ChatMessage[]);
+        }
+
+        if (Array.isArray(data.typingUsers)) {
+          const myEmail = currentUser?.email?.toLowerCase() ?? "";
+          const othersTyping = (data.typingUsers as Array<{ name: string; email: string }>).filter(
+            (u) => u.email.toLowerCase() !== myEmail
+          );
+          setTypingUsers(othersTyping);
+        }
+      } catch {}
+    };
+
+    void pollServerChat();
+    const pollInterval = setInterval(pollServerChat, isChatOpen ? 1500 : 3000);
+
     return () => {
       isSubscribed = false;
+      clearInterval(pollInterval);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
@@ -254,7 +291,7 @@ export const useWorkspaceChat = ({
         socketRef.current = null;
       }
     };
-  }, [workspaceId, getWsUrl, currentUser, refreshMessages, mergeIncomingMessages]);
+  }, [workspaceId, getWsUrl, currentUser, isChatOpen, refreshMessages, mergeIncomingMessages]);
 
   // Send typing signal to peers
   const emitTypingPayload = useCallback(
@@ -277,6 +314,18 @@ export const useWorkspaceChat = ({
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         try { socketRef.current.send(JSON.stringify(payload)); } catch {}
       }
+
+      // Next.js server route for cross-device typing
+      void fetch("/api/workspace-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          typingUser: currentUser
+            ? { name: currentUser.name, email: currentUser.email, isTyping }
+            : { name: "Teammate", email: "teammate@example.com", isTyping }
+        })
+      }).catch(() => {});
     },
     [workspaceId, currentUser]
   );

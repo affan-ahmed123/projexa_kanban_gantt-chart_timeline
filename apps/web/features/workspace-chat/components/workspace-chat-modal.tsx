@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AtSign,
   Crown,
   Download,
   FileText,
@@ -19,6 +20,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -27,7 +29,7 @@ import {
   type ReactElement
 } from "react";
 import { createPortal } from "react-dom";
-import type { ChatAttachment, ChatMessage } from "../types";
+import type { ChatAttachment } from "../types";
 import { useWorkspaceChat } from "../hooks/use-workspace-chat";
 import { ChatMediaLightbox } from "./chat-media-lightbox";
 import {
@@ -65,6 +67,66 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+type MentionableMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  gender?: "neutral" | "male" | "female" | undefined;
+  isLead?: boolean | undefined;
+};
+
+/**
+ * Render message content with highlighted @mentions
+ */
+const renderMessageContent = (
+  content: string,
+  currentUserName?: string,
+  knownNames?: string[]
+) => {
+  if (!content) return null;
+
+  let pattern: RegExp;
+  if (knownNames && knownNames.length > 0) {
+    const escaped = knownNames
+      .filter(Boolean)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .sort((a, b) => b.length - a.length);
+    pattern = new RegExp(`(@(?:${escaped.join("|")})|@[a-zA-Z0-9_-]+)`, "gi");
+  } else {
+    pattern = /(@[a-zA-Z0-9_-]+)/g;
+  }
+
+  const parts = content.split(pattern);
+
+  return (
+    <span>
+      {parts.map((part, i) => {
+        if (part.startsWith("@") && part.length > 1) {
+          const nameWithoutAt = part.slice(1).trim();
+          const isMe =
+            Boolean(currentUserName) &&
+            nameWithoutAt.toLowerCase() === (currentUserName?.toLowerCase() ?? "");
+          return (
+            <span
+              className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-semibold text-xs mx-0.5 transition-colors ${
+                isMe
+                  ? "bg-amber-400/30 text-amber-200 border border-amber-400/50 shadow-2xs font-bold"
+                  : "bg-cyan-400/25 text-cyan-200 border border-cyan-400/35"
+              }`}
+              key={`${part}-${i}`}
+            >
+              <AtSign className="size-2.5 opacity-80" />
+              <span>{nameWithoutAt}</span>
+            </span>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
 export const WorkspaceChatModal = ({
   isOpen,
   onClose,
@@ -83,6 +145,11 @@ export const WorkspaceChatModal = ({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Mention autocomplete state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartIndex, setMentionStartIndex] = useState<number>(-1);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
 
   useEffect(() => {
     setMounted(true);
@@ -139,8 +206,6 @@ export const WorkspaceChatModal = ({
     return;
   }, [selectedFile]);
 
-  if (!isOpen || !workspace || !mounted) return null;
-
   const handleSelectFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -191,12 +256,150 @@ export const WorkspaceChatModal = ({
     }
   };
 
+  const mentionableMembers = useMemo<MentionableMember[]>(() => {
+    if (!workspace) return [];
+    const list: MentionableMember[] = [];
+
+    if (workspace.teamLead?.name) {
+      list.push({
+        id: "lead",
+        name: workspace.teamLead.name,
+        email: workspace.teamLead.email,
+        role: "Team Lead",
+        gender: workspace.teamLead.gender,
+        isLead: true
+      });
+    }
+
+    if (Array.isArray(workspace.members)) {
+      for (const m of workspace.members) {
+        if (m.name && m.email.toLowerCase() !== workspace.teamLead?.email.toLowerCase()) {
+          list.push({
+            id: m.id || m.email,
+            name: m.name,
+            email: m.email,
+            role: m.role || "Member",
+            gender: m.gender
+          });
+        }
+      }
+    }
+    return list;
+  }, [workspace]);
+
+  const memberNames = useMemo(
+    () => mentionableMembers.map((m) => m.name),
+    [mentionableMembers]
+  );
+
+  const filteredMentions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase().trim();
+    if (!q) return mentionableMembers;
+    return mentionableMembers.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        m.role.toLowerCase().includes(q)
+    );
+  }, [mentionQuery, mentionableMembers]);
+
+  const insertMention = useCallback(
+    (member: MentionableMember) => {
+      if (mentionStartIndex < 0) return;
+      const before = inputText.slice(0, mentionStartIndex);
+      const after = inputText.slice(
+        mentionStartIndex + 1 + (mentionQuery?.length ?? 0)
+      );
+      const newText = `${before}@${member.name} ${after}`;
+      setInputText(newText);
+      setMentionQuery(null);
+      setMentionStartIndex(-1);
+
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const nextPos = before.length + member.name.length + 2;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(nextPos, nextPos);
+        }
+      }, 0);
+    },
+    [inputText, mentionQuery, mentionStartIndex]
+  );
+
+  const handleInsertMentionTrigger = useCallback(() => {
+    const textarea = textareaRef.current;
+    const cursor = textarea?.selectionStart ?? inputText.length;
+    const before = inputText.slice(0, cursor);
+    const after = inputText.slice(cursor);
+    const prefix = before.length > 0 && !before.endsWith(" ") ? " @" : "@";
+    const newText = `${before}${prefix}${after}`;
+    const newCursor = cursor + prefix.length;
+    setInputText(newText);
+    setMentionQuery("");
+    setMentionStartIndex(newCursor - 1);
+    setSelectedMentionIndex(0);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursor, newCursor);
+      }
+    }, 0);
+  }, [inputText]);
+
   const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
-    sendTyping(e.target.value.length > 0);
+    const value = e.target.value;
+    const cursor = e.target.selectionStart ?? value.length;
+    setInputText(value);
+    sendTyping(value.length > 0);
+
+    const textBeforeCursor = value.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([a-zA-Z0-9_\s]*)$/);
+    if (match) {
+      const atIndex = textBeforeCursor.lastIndexOf("@");
+      if (atIndex === 0 || /\s/.test(textBeforeCursor[atIndex - 1] ?? "")) {
+        const query = match[1] ?? "";
+        if (!query.includes("\n")) {
+          setMentionQuery(query);
+          setMentionStartIndex(atIndex);
+          setSelectedMentionIndex(0);
+          return;
+        }
+      }
+    }
+    setMentionQuery(null);
+    setMentionStartIndex(-1);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionQuery !== null && filteredMentions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev + 1) % filteredMentions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedMentionIndex(
+          (prev) => (prev - 1 + filteredMentions.length) % filteredMentions.length
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const selected = filteredMentions[selectedMentionIndex] ?? filteredMentions[0];
+        if (selected) {
+          insertMention(selected);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -231,6 +434,8 @@ export const WorkspaceChatModal = ({
       (m.attachment && m.attachment.name.toLowerCase().includes(query))
     );
   });
+
+  if (!isOpen || !workspace || !mounted) return null;
 
   const membersCount = (workspace.members?.length || 0) + 1;
   const leadEmail = workspace.teamLead?.email || workspace.creatorEmail || "";
@@ -372,6 +577,11 @@ export const WorkspaceChatModal = ({
             filteredMessages.map((message) => {
               const isOwn = currentUser && message.senderEmail.toLowerCase() === currentUser.email.toLowerCase();
               const isLead = message.senderEmail.toLowerCase() === leadEmail.toLowerCase();
+              const isMentioned = Boolean(
+                currentUser?.name &&
+                message.content &&
+                new RegExp(`@${currentUser.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(message.content)
+              );
 
               return (
                 <div
@@ -415,12 +625,23 @@ export const WorkspaceChatModal = ({
                       className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-md backdrop-blur-md transition-all ${
                         isOwn
                           ? "bg-gradient-to-br from-cyan-600 via-sky-600 to-blue-700 text-white rounded-tr-xs border border-cyan-300/40"
-                          : "bg-[#0b3347]/90 text-slate-100 rounded-tl-xs border border-cyan-400/30 shadow-inner"
+                          : isMentioned
+                            ? "bg-[#0c384e] text-slate-100 rounded-tl-xs border border-amber-400/80 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/50"
+                            : "bg-[#0b3347]/90 text-slate-100 rounded-tl-xs border border-cyan-400/30 shadow-inner"
                       }`}
                     >
+                      {isMentioned && !isOwn && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-300 font-bold mb-1 tracking-wide">
+                          <AtSign className="size-2.5" />
+                          <span>Mentioned you</span>
+                        </div>
+                      )}
+
                       {/* Message Text */}
                       {message.content && (
-                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                        <div className="whitespace-pre-wrap break-words">
+                          {renderMessageContent(message.content, currentUser?.name, memberNames)}
+                        </div>
                       )}
 
                       {/* Attachment: Image */}
@@ -622,10 +843,68 @@ export const WorkspaceChatModal = ({
               >
                 <Video className="size-4" />
               </button>
+
+              <button
+                className="rounded-lg p-2 text-cyan-200/80 hover:bg-cyan-900/70 hover:text-white transition-colors cursor-pointer"
+                onClick={handleInsertMentionTrigger}
+                title="Mention a teammate (@)"
+                type="button"
+              >
+                <AtSign className="size-4" />
+              </button>
             </div>
 
-            {/* Message Textarea */}
+            {/* Message Textarea & Mention Autocomplete */}
             <div className="flex-1 min-w-0 relative">
+              {/* Mention Autocomplete Dropdown */}
+              {mentionQuery !== null && filteredMentions.length > 0 && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 max-h-48 overflow-y-auto rounded-xl border border-cyan-400/40 bg-[#062534] shadow-2xl backdrop-blur-xl p-1 z-30 custom-scrollbar animate-fade-in">
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300/70 flex items-center justify-between border-b border-cyan-400/15 mb-1">
+                    <span>Mention Teammate</span>
+                    <span className="text-[9px] font-normal text-cyan-200/50">↑↓ to navigate • ↵ to select</span>
+                  </div>
+                  {filteredMentions.map((member, idx) => {
+                    const isSelected = idx === selectedMentionIndex;
+                    return (
+                      <button
+                        key={member.id}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-cyan-500/30 text-white border border-cyan-400/40 font-medium"
+                            : "text-cyan-100 hover:bg-cyan-900/50"
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertMention(member);
+                        }}
+                        type="button"
+                      >
+                        <img
+                          alt={member.name}
+                          className="size-6 rounded-full object-cover ring-1 ring-cyan-300/40 shrink-0"
+                          src={getAvatarUrl(member.name, member.gender)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold truncate text-white">{member.name}</span>
+                            {member.isLead && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-300/30 px-1 py-0.1 text-[8px] font-bold">
+                                <Crown className="size-2" />
+                                <span>Lead</span>
+                              </span>
+                            )}
+                            {!member.isLead && member.role && (
+                              <span className="text-[9px] text-cyan-300/70 truncate">{member.role}</span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-cyan-200/50 truncate block">{member.email}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <textarea
                 ref={textareaRef}
                 className="w-full max-h-24 resize-none rounded-xl border border-cyan-300/30 bg-cyan-950/60 px-3 py-2 text-xs sm:text-sm text-white placeholder-cyan-200/50 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 custom-scrollbar"
