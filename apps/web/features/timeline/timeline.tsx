@@ -292,7 +292,7 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
         </div>
       </footer>
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur-md text-xs font-medium text-slate-800 dark:border-[#293d5c] dark:bg-[#182338] dark:text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur-md text-xs font-medium text-slate-800 dark:border-[#293d5c] dark:bg-[#182338] dark:text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /><span>{toastMessage}</span>
         </div>
       )}

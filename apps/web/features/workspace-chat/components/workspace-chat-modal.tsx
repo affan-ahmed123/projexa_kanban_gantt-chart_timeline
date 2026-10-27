@@ -26,6 +26,7 @@ import {
   type KeyboardEvent,
   type ReactElement
 } from "react";
+import { createPortal } from "react-dom";
 import type { ChatAttachment, ChatMessage } from "../types";
 import { useWorkspaceChat } from "../hooks/use-workspace-chat";
 import { ChatMediaLightbox } from "./chat-media-lightbox";
@@ -81,6 +82,11 @@ export const WorkspaceChatModal = ({
   const [isMaximized, setIsMaximized] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -133,7 +139,7 @@ export const WorkspaceChatModal = ({
     return;
   }, [selectedFile]);
 
-  if (!isOpen || !workspace) return null;
+  if (!isOpen || !workspace || !mounted) return null;
 
   const handleSelectFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -229,13 +235,13 @@ export const WorkspaceChatModal = ({
   const membersCount = (workspace.members?.length || 0) + 1;
   const leadEmail = workspace.teamLead?.email || workspace.creatorEmail || "";
 
-  return (
+  return createPortal(
     <>
       <div
-        className={`fixed z-50 transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-2xl backdrop-blur-2xl border border-cyan-400/40 bg-gradient-to-b from-[#062534]/95 via-[#083348]/95 to-[#051c27]/95 text-white ${
+        className={`fixed z-50 transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-2xl backdrop-blur-2xl border border-cyan-400/40 bg-gradient-to-b from-[#062534]/98 via-[#083348]/98 to-[#051c27]/98 text-white ${
           isMaximized
             ? "inset-2 sm:inset-6 rounded-2xl"
-            : "bottom-3 right-3 sm:bottom-6 sm:right-6 w-[95vw] sm:w-[480px] h-[85vh] sm:h-[620px] max-h-[720px] rounded-2xl"
+            : "bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-32px)] sm:w-[480px] h-[80vh] sm:h-[620px] max-h-[720px] rounded-2xl"
         }`}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
@@ -655,6 +661,7 @@ export const WorkspaceChatModal = ({
         attachment={activeLightboxMedia}
         onClose={() => setActiveLightboxMedia(null)}
       />
-    </>
+    </>,
+    document.body
   );
 };

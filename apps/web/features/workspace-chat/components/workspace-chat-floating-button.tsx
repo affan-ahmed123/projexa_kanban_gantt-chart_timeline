@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { MessageSquare, Sparkles } from "lucide-react";
-import type { ReactElement } from "react";
 
 type Props = Readonly<{
   onClick: () => void;
@@ -16,9 +17,14 @@ export const WorkspaceChatFloatingButton = ({
   unreadCount = 0,
   workspaceName
 }: Props): ReactElement | null => {
-  if (isOpen) return null; // hide button when chat window is already open
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
+  if (isOpen || !mounted) return null; // hide button when chat window is already open
+
+  return createPortal(
     <aside
       aria-label="Workspace Team Chat launcher"
       className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40"
@@ -56,6 +62,7 @@ export const WorkspaceChatFloatingButton = ({
           </span>
         )}
       </button>
-    </aside>
+    </aside>,
+    document.body
   );
 };
