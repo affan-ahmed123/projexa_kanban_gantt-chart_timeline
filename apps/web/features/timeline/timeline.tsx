@@ -158,7 +158,7 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
     const ws = getActiveWorkspace();
 
     // 1. Optimistically update local workspace & broadcast
-    const fallback = tasks.map((t) => (t.id === draggedTask.id ? { ...t, assigneeId: targetPersonId } : t));
+    const fallback = tasks.map((t) => (t.id === draggedTask.id ? normalizeTaskDates({ ...t, assigneeId: targetPersonId }) : t));
     setTasks(fallback);
     saveWorkspaceTasks(ws.id, fallback);
     broadcastTasks(fallback, "reassigned");
@@ -171,7 +171,10 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
       if (result?.task) {
         setTasks((current) => {
           const updated = new Map([result.task, ...result.rescheduled].map((t) => [t.id, t]));
-          const nextTasks = current.map((t) => updated.get(t.id) ?? t);
+          const nextTasks = current.map((t) => {
+            const patch = updated.get(t.id);
+            return patch ? normalizeTaskDates({ ...t, ...patch }) : t;
+          });
           saveWorkspaceTasks(ws.id, nextTasks);
           broadcastTasks(nextTasks, "reassigned");
           return nextTasks;
@@ -217,6 +220,7 @@ export const Timeline = ({ apiBaseUrl }: TimelineProps): ReactElement => {
       </div>
       <ViewHeader
         activeView="timeline"
+        apiBaseUrl={apiBaseUrl}
         description="Track team member capacity, workloads, and task schedules over time."
         taskCount={tasks.length}
         title="Timeline (Workload View)"

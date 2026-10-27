@@ -34,8 +34,9 @@ import { WorkspaceDeleteModal } from "./workspace-delete-modal";
 import { WorkspaceLeaveModal } from "./workspace-leave-modal";
 import { AccountDeleteModal } from "./account-delete-modal";
 import { WorkspaceWizardModal } from "./workspace-wizard-modal";
+import { WorkspaceChatModal } from "@/features/workspace-chat/public";
 
-type WorkspaceFoundationProps = Readonly<{ apiBaseUrl?: string }>;
+type WorkspaceFoundationProps = Readonly<{ apiBaseUrl?: string | undefined }>;
 
 export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): ReactElement => {
 
@@ -59,6 +60,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
   const [workspaceToLeave, setWorkspaceToLeave] = useState<Workspace | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<UserSession | null>(null);
+  const [chatWorkspace, setChatWorkspace] = useState<Workspace | null>(null);
 
   const [name, setName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState("rocket");
@@ -370,6 +372,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
                         switchActiveWorkspace(id);
                         if (typeof window !== "undefined") window.location.href = "/board";
                       }}
+                      onOpenChat={(w) => setChatWorkspace(w)}
                       onRequestDelete={(w) => setWorkspaceToDelete(w)}
                       onRequestLeave={(w) => setWorkspaceToLeave(w)}
                       workspace={ws}
@@ -389,6 +392,15 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
       <WorkspaceDeleteModal onClose={() => setWorkspaceToDelete(null)} onConfirmDelete={() => { if (workspaceToDelete) { deleteWorkspace(workspaceToDelete.id); setWorkspaceToDelete(null); refreshWorkspaces(); } }} workspace={workspaceToDelete} />
       <WorkspaceLeaveModal onClose={() => setWorkspaceToLeave(null)} onConfirmLeave={() => { if (workspaceToLeave && currentUser) { leaveWorkspace(workspaceToLeave.id, currentUser.email); setWorkspaceToLeave(null); refreshWorkspaces(); } }} workspace={workspaceToLeave} />
       <AccountDeleteModal account={accountToDelete} onClose={() => setAccountToDelete(null)} onConfirmDelete={(email) => { deleteUserAccount(email); setAccountToDelete(null); setCurrentUserState(null); setCurrentUserEmail(""); setUserWorkspaces([]); }} />
+      {chatWorkspace && (
+        <WorkspaceChatModal
+          apiBaseUrl={apiBaseUrl}
+          currentUser={currentUser}
+          isOpen={Boolean(chatWorkspace)}
+          onClose={() => setChatWorkspace(null)}
+          workspace={chatWorkspace}
+        />
+      )}
       {apiBaseUrl && <ApiBoundary baseUrl={apiBaseUrl} />}
     </main>
   );

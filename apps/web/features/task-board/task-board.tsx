@@ -363,7 +363,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         <div className="absolute inset-0 bg-[#f8fafc] dark:bg-[#0b0f19]" />
         <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1.2px,transparent_1.2px)] [background-size:24px_24px] opacity-75 dark:bg-[radial-gradient(#1e293b_1.2px,transparent_1.2px)] dark:opacity-60" />
       </div>
-      <ViewHeader activeView="board" description="Manage work items and track sprint delivery across stages." taskCount={tasks.length} title="Kanban Board" />
+      <ViewHeader activeView="board" apiBaseUrl={apiBaseUrl} description="Manage work items and track sprint delivery across stages." taskCount={tasks.length} title="Kanban Board" />
       <TaskBoardSprintOverview
         isTeamLead={isTeamLead}
         memberRole={memberRole}

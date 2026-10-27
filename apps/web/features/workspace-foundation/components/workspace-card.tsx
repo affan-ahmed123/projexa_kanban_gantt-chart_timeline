@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Crown, Lock, LogOut, Mail, Trash2, UserPlus } from "lucide-react";
+import { ArrowRight, Crown, Lock, LogOut, Mail, MessageSquare, Trash2, UserPlus } from "lucide-react";
 import type { ReactElement } from "react";
 import type { Workspace } from "../workspace.service";
 import { getAvatarUrl } from "../utils/profile-avatar";
@@ -14,6 +14,7 @@ type WorkspaceCardProps = Readonly<{
   onAddMembers: (workspace: Workspace) => void;
   onRequestDelete: (workspace: Workspace) => void;
   onRequestLeave?: (workspace: Workspace) => void;
+  onOpenChat?: (workspace: Workspace) => void;
 }>;
 
 export const WorkspaceCard = ({
@@ -23,7 +24,8 @@ export const WorkspaceCard = ({
   onOpenBoard,
   onAddMembers,
   onRequestDelete,
-  onRequestLeave
+  onRequestLeave,
+  onOpenChat
 }: WorkspaceCardProps): ReactElement => {
   const WsCardIcon = getWorkspaceIcon(ws.icon);
 
@@ -133,6 +135,21 @@ export const WorkspaceCard = ({
           <span>Open Board</span>
           <ArrowRight className="size-3.5 text-cyan-300" />
         </button>
+
+        {onOpenChat && (
+          <button
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-300/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-200 hover:text-white px-3 py-2.5 text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0 active:scale-95"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChat(ws);
+            }}
+            title="Open workspace team chat & media sharing"
+            type="button"
+          >
+            <MessageSquare className="size-3.5 text-cyan-300" />
+            <span>Chat</span>
+          </button>
+        )}
 
         {isTeamLead && (
           <button

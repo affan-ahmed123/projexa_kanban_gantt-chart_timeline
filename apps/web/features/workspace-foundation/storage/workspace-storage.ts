@@ -129,11 +129,27 @@ export const switchActiveWorkspace = (workspaceId: string): Workspace => {
 };
 
 export const normalizeTaskDates = (task: Task): Task => {
-  let startDate = task.startDate;
-  let dueDate = task.dueDate;
+  const id = typeof task.id === "string" && task.id ? task.id : `task-${Date.now()}`;
+  const title = typeof task.title === "string" && task.title.trim() ? task.title : "Task";
+  const status = (task.status === "todo" || task.status === "in_progress" || task.status === "review" || task.status === "done")
+    ? task.status
+    : "todo";
+  const rawAssignee = typeof task.assigneeId === "string" ? task.assigneeId.trim() : null;
+  const assigneeId = rawAssignee && rawAssignee.length > 0 ? rawAssignee : null;
+  const dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn.filter((d): d is string => typeof d === "string") : [];
+  const now = new Date().toISOString();
+  const createdAt = typeof task.createdAt === "string" && task.createdAt ? task.createdAt : now;
+  const updatedAt = typeof task.updatedAt === "string" && task.updatedAt ? task.updatedAt : now;
+
+  let startDate = typeof task.startDate === "string" && task.startDate.trim() ? task.startDate.trim() : null;
+  let dueDate = typeof task.dueDate === "string" && task.dueDate.trim() ? task.dueDate.trim() : null;
+
+  if (startDate && isNaN(Date.parse(startDate))) startDate = null;
+  if (dueDate && isNaN(Date.parse(dueDate))) dueDate = null;
 
   if (!startDate && !dueDate) {
-    startDate = task.createdAt ? task.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const baseDate = createdAt && !isNaN(Date.parse(createdAt)) ? createdAt.slice(0, 10) : now.slice(0, 10);
+    startDate = baseDate;
     dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
   } else if (!startDate && dueDate) {
     startDate = new Date(Date.parse(dueDate) - 3 * 86_400_000).toISOString().slice(0, 10);
@@ -141,13 +157,17 @@ export const normalizeTaskDates = (task: Task): Task => {
     dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
   }
 
-  if (startDate === task.startDate && dueDate === task.dueDate) {
-    return task;
-  }
   return {
     ...task,
+    id,
+    title,
+    status,
+    assigneeId,
     startDate,
-    dueDate
+    dueDate,
+    dependsOn,
+    createdAt,
+    updatedAt
   };
 };
 

@@ -6,14 +6,15 @@ export const getTaskStyle = (status: TaskStatus, isLate: boolean) => {
     return { backgroundColor: "var(--danger-bg)", borderLeftColor: "var(--danger)", borderLeftWidth: "4px" };
   }
   switch (status) {
-    case "todo":
-      return { backgroundColor: "var(--todo-bg)", borderLeftColor: "var(--todo)", borderLeftWidth: "4px" };
     case "in_progress":
       return { backgroundColor: "var(--in-progress-bg)", borderLeftColor: "var(--in-progress)", borderLeftWidth: "4px" };
     case "review":
       return { backgroundColor: "var(--review-bg)", borderLeftColor: "var(--review)", borderLeftWidth: "4px" };
     case "done":
       return { backgroundColor: "var(--done-bg)", borderLeftColor: "var(--done)", borderLeftWidth: "4px" };
+    case "todo":
+    default:
+      return { backgroundColor: "var(--todo-bg)", borderLeftColor: "var(--todo)", borderLeftWidth: "4px" };
   }
 };
 

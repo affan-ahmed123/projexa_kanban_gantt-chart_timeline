@@ -28,7 +28,15 @@ const pixelsPerDay: Readonly<Record<GanttZoom, number>> = Object.freeze({
 });
 
 export const toUtcDay = (value: string): number => {
+  if (!value) {
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  }
   const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  }
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 };
 
@@ -63,20 +71,26 @@ export const createGanttWindow = (
   const latest = scheduled.length > 0
     ? Math.max(...scheduled.map(({ dueDate }) => toUtcDay(dueDate ?? "")))
     : addDays(todayDay, 14);
-  const requestedStart = addDays(earliest, -7);
+
+  const safeEarliest = isNaN(earliest) ? todayDay : earliest;
+  const safeLatest = isNaN(latest) ? addDays(todayDay, 14) : latest;
+
+  const requestedStart = addDays(safeEarliest, -7);
   const startDay = zoom === "day" ? requestedStart
     : zoom === "week" ? startOfWeek(requestedStart)
       : startOfMonth(requestedStart);
-  const requestedEnd = addDays(latest, 8);
+  const requestedEnd = addDays(safeLatest, 8);
   const endDay = zoom === "month"
     ? addDays(startOfMonth(requestedEnd), new Date(requestedEnd).getUTCMonth() === 11
       ? 31
       : new Date(Date.UTC(new Date(requestedEnd).getUTCFullYear(), new Date(requestedEnd).getUTCMonth() + 1, 0)).getUTCDate())
     : zoom === "week" ? addDays(startOfWeek(requestedEnd), 7)
       : requestedEnd;
+
+  const totalDays = Math.max(1, Math.ceil((endDay - startDay) / DAY_MS));
   return Object.freeze({
-    startDay,
-    totalDays: Math.max(1, Math.ceil((endDay - startDay) / DAY_MS)),
+    startDay: isNaN(startDay) ? todayDay : startDay,
+    totalDays: isNaN(totalDays) ? 30 : totalDays,
     pixelsPerDay: pixelsPerDay[zoom]
   });
 };

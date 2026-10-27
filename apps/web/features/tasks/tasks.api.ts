@@ -93,8 +93,38 @@ export const createTasksApi = (baseUrl?: string, fetcher: typeof fetch = fetch):
         body: JSON.stringify(input)
       });
       if (!res) {
+        let existing: Partial<Task> = {};
+        if (typeof window !== "undefined") {
+          try {
+            const rawActive = localStorage.getItem("projexa_active_workspace") || localStorage.getItem("nutsyll_active_workspace");
+            const wsId = rawActive ? (JSON.parse(rawActive) as { id?: string })?.id : "";
+            if (wsId) {
+              const rawTasks = localStorage.getItem(`projexa_tasks_${wsId}`) || localStorage.getItem(`nutsyll_tasks_${wsId}`);
+              if (rawTasks) {
+                const list = JSON.parse(rawTasks) as Task[];
+                const found = list.find((t) => t.id === id);
+                if (found) existing = found;
+              }
+            }
+          } catch {}
+        }
+
+        const now = new Date().toISOString();
+        const mergedTask: Task = {
+          id,
+          title: existing.title ?? "Task",
+          status: existing.status ?? "todo",
+          assigneeId: existing.assigneeId ?? null,
+          startDate: existing.startDate ?? now.slice(0, 10),
+          dueDate: existing.dueDate ?? new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10),
+          dependsOn: existing.dependsOn ?? [],
+          createdAt: existing.createdAt ?? now,
+          updatedAt: now,
+          ...input
+        };
+
         return {
-          task: { id, ...input } as unknown as Task,
+          task: mergedTask,
           rescheduled: [],
           conflicts: []
         };

@@ -226,7 +226,8 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
     const target = getTaskBarLayout(task, ganttWindow);
     const targetRow = taskRows.get(task.id);
     if (!target || targetRow === undefined) return [];
-    return task.dependsOn.flatMap((predecessorId: string) => {
+    const deps = Array.isArray(task.dependsOn) ? task.dependsOn : [];
+    return deps.flatMap((predecessorId: string) => {
       const predecessor = scheduledTasks.find(({ id }) => id === predecessorId);
       const predecessorRow = taskRows.get(predecessorId);
       const source = predecessor ? getTaskBarLayout(predecessor, ganttWindow) : null;
@@ -244,7 +245,7 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
         <div className="absolute inset-0 bg-[#f8fafc] dark:bg-[#0b0f19]" />
         <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1.2px,transparent_1.2px)] [background-size:24px_24px] opacity-75 dark:bg-[radial-gradient(#1e293b_1.2px,transparent_1.2px)] dark:opacity-60" />
       </div>
-      <ViewHeader activeView="gantt" description="Plan dates, follow dependencies, and reschedule work together across time." taskCount={tasks.length} title="Gantt Chart" />
+      <ViewHeader activeView="gantt" apiBaseUrl={apiBaseUrl} description="Plan dates, follow dependencies, and reschedule work together across time." taskCount={tasks.length} title="Gantt Chart" />
       <GanttControls onZoomChange={setZoom} zoom={zoom} />
       <GanttConflicts conflicts={conflicts} error={error} onRetry={() => void loadTasks()} />
       {loading ? (
@@ -285,13 +286,13 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
                   <div className="sticky left-0 z-10 bg-white/90 dark:bg-slate-900/90">
                     {scheduledTasks.map((t) => (
                       <div className="flex h-14 items-center border-b border-r border-slate-300 px-4 dark:border-slate-700" key={t.id}>
-                        <span className="truncate text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100" title={t.title}>{t.title}</span>
+                        <span className="truncate text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100" title={t.title || "Task"}>{t.title || "Task"}</span>
                       </div>
                     ))}
                   </div>
                   <div className="relative touch-pan-x" style={{ height: scheduleHeight, width: timelineWidth }}>
                     {ticks.map((t) => <span aria-hidden="true" className="absolute inset-y-0 border-l border-slate-300/70 dark:border-slate-700/70" key={t.day} style={{ left: t.x }} />)}
-                    {todayX >= 0 && todayX <= timelineWidth && <div aria-label="Today" className="pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" data-testid="today-marker" style={{ left: todayX }} title="Today" />}
+                    {Number.isFinite(todayX) && todayX >= 0 && todayX <= timelineWidth && <div aria-label="Today" className="pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" data-testid="today-marker" style={{ left: todayX }} title="Today" />}
                     <svg aria-label="Task dependencies" className="pointer-events-none absolute inset-0 z-20 overflow-visible" height={scheduleHeight} role="img" viewBox={`0 0 ${timelineWidth} ${scheduleHeight}`} width={timelineWidth}>
                       <defs><marker id="gantt-arrow" markerHeight="7" markerWidth="7" orient="auto" refX="5" refY="3.5"><path d="M0,0 L0,7 L6,3.5 z" fill="currentColor" /></marker></defs>
                       {dependencyPaths.map(({ id, path }) => <path className="text-slate-800 dark:text-slate-200" d={path} fill="none" key={id} markerEnd="url(#gantt-arrow)" stroke="currentColor" strokeWidth="1.5" />)}

@@ -121,7 +121,7 @@ export const TimelinePersonRow = ({
           />
         ))}
 
-        {todayX >= 0 && todayX <= timelineWidth && (
+        {Number.isFinite(todayX) && todayX >= 0 && todayX <= timelineWidth && (
           <div
             aria-label="Today"
             className="pointer-events-none absolute inset-y-0 z-30 w-0.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
@@ -143,7 +143,7 @@ export const TimelinePersonRow = ({
             const canDrag = isTeamLead && !isSaving;
             return (
               <div
-                className={`absolute rounded-lg ${TASK_STATUS_CLASSES[task.status]} px-2.5 py-1 text-xs shadow-2xs transition-all ${
+                className={`absolute rounded-lg ${TASK_STATUS_CLASSES[task.status] ?? TASK_STATUS_CLASSES.todo} px-2.5 py-1 text-xs shadow-2xs transition-all ${
                   canDrag ? "cursor-move hover:opacity-95 hover:shadow-xs active:cursor-grabbing" : "cursor-default"
                 } ${
                   isSaving ? "opacity-50" : ""
@@ -159,11 +159,11 @@ export const TimelinePersonRow = ({
                   top: layout.top + 8,
                   height: layout.height
                 }}
-                title={`${task.title}\n${task.startDate ? dateLabel(task.startDate) : ""} – ${
+                title={`${task.title || "Task"}\n${task.startDate ? dateLabel(task.startDate) : ""} – ${
                   task.dueDate ? dateLabel(task.dueDate) : ""
                 }`}
               >
-                <div className="truncate font-semibold text-slate-900 dark:text-slate-100">{task.title}</div>
+                <div className="truncate font-semibold text-slate-900 dark:text-slate-100">{task.title || "Task"}</div>
               </div>
             );
           })}

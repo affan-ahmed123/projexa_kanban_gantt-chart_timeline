@@ -36,8 +36,9 @@ const DAY_MS = 86_400_000;
 export const extractAssignees = (tasks: readonly Task[]): readonly string[] => {
   const assigneeIds = new Set<string>();
   for (const task of tasks) {
-    if (task.assigneeId) {
-      assigneeIds.add(task.assigneeId);
+    const rawKey = typeof task.assigneeId === "string" ? task.assigneeId.trim() : null;
+    if (rawKey) {
+      assigneeIds.add(rawKey);
     }
   }
   return Array.from(assigneeIds).sort();
@@ -50,7 +51,8 @@ export const groupTasksByAssignee = (tasks: readonly Task[]): readonly PersonRow
   const tasksByPerson = new Map<string | null, Task[]>();
 
   for (const task of tasks) {
-    const key = task.assigneeId;
+    const rawKey = typeof task.assigneeId === "string" ? task.assigneeId.trim() : null;
+    const key = rawKey === "" ? null : rawKey;
     const existing = tasksByPerson.get(key) ?? [];
     tasksByPerson.set(key, [...existing, task]);
   }
@@ -92,6 +94,7 @@ export const isTaskActiveOnDay = (task: Task, day: number): boolean => {
   if (!task.startDate || !task.dueDate) return false;
   const startDay = toUtcDay(task.startDate);
   const dueDay = toUtcDay(task.dueDate);
+  if (!Number.isFinite(startDay) || !Number.isFinite(dueDay)) return false;
   return day >= startDay && day <= dueDay;
 };
 
@@ -105,6 +108,9 @@ export const calculateWorkload = (
 ): readonly WorkloadDay[] => {
   const workload: WorkloadDay[] = [];
   const { startDay, totalDays } = window;
+  if (!Number.isFinite(startDay) || !Number.isFinite(totalDays) || totalDays <= 0) {
+    return workload;
+  }
 
   for (let i = 0; i < totalDays; i++) {
     const day = startDay + i * DAY_MS;
@@ -154,6 +160,9 @@ export const detectOverlaps = (
   window: GanttWindow
 ): readonly TaskOverlap[] => {
   const { startDay, totalDays } = window;
+  if (!Number.isFinite(startDay) || !Number.isFinite(totalDays) || totalDays <= 0) {
+    return [];
+  }
   const overlaps: TaskOverlap[] = [];
 
   for (let i = 0; i < totalDays; i++) {
@@ -176,9 +185,11 @@ export const detectOverlaps = (
  */
 export const sortTasksByDate = (tasks: readonly Task[]): readonly Task[] => {
   return [...tasks].sort((a, b) => {
-    if (!a.startDate) return b.startDate ? 1 : a.title.localeCompare(b.title);
+    const aTitle = a.title ?? "Task";
+    const bTitle = b.title ?? "Task";
+    if (!a.startDate) return b.startDate ? 1 : aTitle.localeCompare(bTitle);
     if (!b.startDate) return -1;
-    return a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title);
+    return a.startDate.localeCompare(b.startDate) || aTitle.localeCompare(bTitle);
   });
 };
 
@@ -199,6 +210,13 @@ export const stackOverlappingTasks = (
 
   // Simple stacking: each overlapping task gets a stack position
   const { startDay, totalDays } = window;
+  if (!Number.isFinite(startDay) || !Number.isFinite(totalDays) || totalDays <= 0) {
+    return sorted.map((task) => ({
+      task,
+      stackIndex: 0,
+      totalInStack: 1
+    }));
+  }
   const positionMap = new Map<string, number>();
 
   for (let i = 0; i < totalDays; i++) {

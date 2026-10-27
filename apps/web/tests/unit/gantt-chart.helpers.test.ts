@@ -73,3 +73,43 @@ test("getTaskStyle returns danger styles when overdue", () => {
   const style = getTaskStyle("in_progress", true);
   assert.equal(style.backgroundColor, "var(--danger-bg)");
 });
+
+test("sortTasks safely handles corrupted tasks with undefined title or null dates", () => {
+  const corruptedA = { id: "c1", status: "todo", startDate: null } as unknown as Task;
+  const corruptedB = { id: "c2", status: "todo", title: "Valid Title", startDate: "2026-05-01T00:00:00.000Z" } as unknown as Task;
+  const corruptedC = { id: "c3", status: "todo", startDate: "2026-05-01T00:00:00.000Z" } as unknown as Task;
+
+  assert.doesNotThrow(() => {
+    const sorted = sortTasks([corruptedA, corruptedB, corruptedC]);
+    assert.equal(sorted.length, 3);
+  });
+});
+
+test("mergeUpdatedTasks preserves existing task properties when partial update is applied", () => {
+  const now = "2026-05-01T00:00:00.000Z";
+  const original: Task[] = [
+    {
+      id: "task-reassign",
+      title: "Critical Design Task",
+      status: "in_progress",
+      assigneeId: "alice",
+      startDate: "2026-05-01",
+      dueDate: "2026-05-05",
+      dependsOn: ["task-prev"],
+      createdAt: now,
+      updatedAt: now
+    }
+  ];
+
+  // Simulating partial update from offline/reassign endpoint
+  const partialUpdate = { id: "task-reassign", assigneeId: "bob" } as unknown as Task;
+  const merged = mergeUpdatedTasks(original, partialUpdate, []);
+
+  assert.equal(merged[0]?.id, "task-reassign");
+  assert.equal(merged[0]?.assigneeId, "bob");
+  assert.equal(merged[0]?.title, "Critical Design Task");
+  assert.equal(merged[0]?.status, "in_progress");
+  assert.equal(merged[0]?.startDate, "2026-05-01");
+  assert.equal(merged[0]?.dueDate, "2026-05-05");
+  assert.deepEqual(merged[0]?.dependsOn, ["task-prev"]);
+});

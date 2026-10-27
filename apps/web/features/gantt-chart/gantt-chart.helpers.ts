@@ -43,14 +43,21 @@ export const dateLabel = (value: string): string => new Intl.DateTimeFormat(unde
 
 export const sortTasks = (tasks: readonly Task[]): readonly Task[] =>
   [...tasks].sort((left, right) => {
-    if (!left.startDate) return right.startDate ? 1 : left.title.localeCompare(right.title);
-    if (!right.startDate) return -1;
-    return left.startDate.localeCompare(right.startDate) || left.title.localeCompare(right.title);
+    const leftTitle = left.title ?? "Task";
+    const rightTitle = right.title ?? "Task";
+    const leftStart = left.startDate ?? "";
+    const rightStart = right.startDate ?? "";
+    if (!leftStart) return rightStart ? 1 : leftTitle.localeCompare(rightTitle);
+    if (!rightStart) return -1;
+    return leftStart.localeCompare(rightStart) || leftTitle.localeCompare(rightTitle);
   });
 
 export const mergeUpdatedTasks = (current: readonly Task[], update: Task, rescheduled: readonly Task[]): readonly Task[] => {
   const changed = new Map([update, ...rescheduled].map((task) => [task.id, task]));
-  return current.map((task) => changed.get(task.id) ?? task);
+  return current.map((task) => {
+    const patch = changed.get(task.id);
+    return patch ? { ...task, ...patch } : task;
+  });
 };
 
 export const shiftDateByDays = (value: string, days: number): string => {

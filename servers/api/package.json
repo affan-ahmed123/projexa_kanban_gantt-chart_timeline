@@ -7,7 +7,12 @@
     "dev": "tsx watch server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "test": "tsx --test features/health/tests/*.test.ts features/tasks/tests/*.test.ts tests/environment.test.ts tests/http-boundaries.test.ts tests/mongodb.test.ts tests/shutdown.test.ts",
+    "test": "tsx --test features/health/tests/*.test.ts features/tasks/tests/*.test.ts tests/chat.test.ts tests/concurrency.test.ts tests/e2e.test.ts tests/environment.test.ts tests/http-boundaries.test.ts tests/mongodb.test.ts tests/multiuser.test.ts tests/shutdown.test.ts tests/stress.test.ts",
+    "test:chat": "tsx --test tests/chat.test.ts",
+    "test:concurrency": "tsx --test tests/concurrency.test.ts",
+    "test:stress": "tsx --test tests/stress.test.ts",
+    "test:multiuser": "tsx --test tests/multiuser.test.ts",
+    "test:e2e": "tsx --test tests/e2e.test.ts",
     "lint": "eslint \"**/*.ts\"",
     "typecheck": "tsc --noEmit"
   },

@@ -28,6 +28,12 @@ import {
 import { ViewHeaderUserMenu } from "./view-header-user-menu";
 import { WorkspaceMembersModal } from "./workspace-members-modal";
 import { InviteModal } from "./invite-modal";
+import {
+  WorkspaceChatModal,
+  WorkspaceChatTrigger,
+  WorkspaceChatFloatingButton,
+  useWorkspaceChat
+} from "@/features/workspace-chat/public";
 
 type ViewName = "board" | "gantt" | "timeline";
 
@@ -35,7 +41,8 @@ type ViewHeaderProps = Readonly<{
   activeView: ViewName;
   title: string;
   description: string;
-  taskCount?: number;
+  taskCount?: number | undefined;
+  apiBaseUrl?: string | undefined;
 }>;
 
 const getWorkspaceIcon = (iconId?: string) => {
@@ -61,10 +68,12 @@ export const ViewHeader = ({
   activeView,
   title,
   description,
-  taskCount
+  taskCount,
+  apiBaseUrl
 }: ViewHeaderProps): ReactElement => {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [currentUser, setCurrentUserState] = useState<UserSession | null>(null);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
 
   useEffect(() => {
     setWorkspace(getActiveWorkspace());
@@ -80,6 +89,13 @@ export const ViewHeader = ({
       window.removeEventListener("nutsyll_session_change", handleSessionChange);
     };
   }, []);
+
+  const { unreadCount } = useWorkspaceChat({
+    workspaceId: workspace?.id || "",
+    currentUser,
+    apiBaseUrl,
+    isChatOpen: chatModalOpen
+  });
 
   const handleSelectUser = (session: UserSession) => {
     setCurrentUser(session);
@@ -141,6 +157,14 @@ export const ViewHeader = ({
             <Users className="size-3 text-cyan-300 shrink-0" />
             <span>{totalMembersCount} {totalMembersCount === 1 ? "Member" : "Members"}</span>
           </button>
+
+          {/* Workspace Team Chat Trigger */}
+          {workspace && (
+            <WorkspaceChatTrigger
+              onClick={() => setChatModalOpen(true)}
+              unreadCount={unreadCount}
+            />
+          )}
 
           <ViewHeaderUserMenu
             activeRoleName={activeRoleName}
@@ -231,6 +255,24 @@ export const ViewHeader = ({
           }}
           workspace={workspace}
         />
+      )}
+
+      {workspace && (
+        <>
+          <WorkspaceChatModal
+            apiBaseUrl={apiBaseUrl}
+            currentUser={currentUser}
+            isOpen={chatModalOpen}
+            onClose={() => setChatModalOpen(false)}
+            workspace={workspace}
+          />
+          <WorkspaceChatFloatingButton
+            isOpen={chatModalOpen}
+            onClick={() => setChatModalOpen(true)}
+            unreadCount={unreadCount}
+            workspaceName={workspace.name}
+          />
+        </>
       )}
     </header>
   );

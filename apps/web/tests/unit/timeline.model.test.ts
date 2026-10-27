@@ -137,3 +137,28 @@ void test("getStackedTaskBarLayout returns valid layout for scheduled tasks", ()
   assert.equal(layout.top, 0);
   assert.equal(layout.height, 28);
 });
+
+void test("sortTasksByDate safely handles corrupted tasks with missing title", () => {
+  const corruptedA = { id: "c1", startDate: "2026-10-14T00:00:00.000Z" } as unknown as Task;
+  const corruptedB = { id: "c2", startDate: "2026-10-14T00:00:00.000Z", title: "Valid Title" } as unknown as Task;
+
+  assert.doesNotThrow(() => {
+    const sorted = sortTasksByDate([corruptedA, corruptedB]);
+    assert.equal(sorted.length, 2);
+  });
+});
+
+void test("groupTasksByAssignee safely groups tasks with whitespace or empty assigneeId into unassigned", () => {
+  const whitespaceTask = baseTask({ id: "ws1", title: "Whitespace", assigneeId: "   " as string });
+  const nullTask = baseTask({ id: "nl1", title: "Null Assignee", assigneeId: null });
+  const validTask = baseTask({ id: "v1", title: "Valid Assignee", assigneeId: "carol" });
+
+  const rows = groupTasksByAssignee([whitespaceTask, nullTask, validTask]);
+  const unassigned = rows.find((r) => r.person === null);
+  const carolRow = rows.find((r) => r.person?.id === "carol");
+
+  assert.ok(unassigned);
+  assert.equal(unassigned.tasks.length, 2);
+  assert.ok(carolRow);
+  assert.equal(carolRow.tasks.length, 1);
+});
