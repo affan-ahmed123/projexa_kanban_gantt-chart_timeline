@@ -34,6 +34,7 @@ import { useWorkspaceChat } from "../hooks/use-workspace-chat";
 import { ChatMediaLightbox } from "./chat-media-lightbox";
 import {
   getAvatarUrl,
+  getActiveWorkspace,
   type UserSession,
   type Workspace
 } from "@/features/workspace-foundation/public";
@@ -151,9 +152,29 @@ export const WorkspaceChatModal = ({
   const [mentionStartIndex, setMentionStartIndex] = useState<number>(-1);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
 
+  const [currentWs, setCurrentWs] = useState<Workspace | null>(workspace);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setCurrentWs(workspace || getActiveWorkspace());
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCurrentWs(workspace || getActiveWorkspace());
+    const handleMembersChange = () => {
+      setCurrentWs(getActiveWorkspace());
+    };
+    window.addEventListener("projexa_workspace_members_change", handleMembersChange);
+    window.addEventListener("projexa_session_change", handleMembersChange);
+    return () => {
+      window.removeEventListener("projexa_workspace_members_change", handleMembersChange);
+      window.removeEventListener("projexa_session_change", handleMembersChange);
+    };
+  }, [isOpen, workspace]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -257,23 +278,24 @@ export const WorkspaceChatModal = ({
   };
 
   const mentionableMembers = useMemo<MentionableMember[]>(() => {
-    if (!workspace) return [];
+    const ws = currentWs || workspace;
+    if (!ws) return [];
     const list: MentionableMember[] = [];
 
-    if (workspace.teamLead?.name) {
+    if (ws.teamLead?.name) {
       list.push({
         id: "lead",
-        name: workspace.teamLead.name,
-        email: workspace.teamLead.email,
+        name: ws.teamLead.name,
+        email: ws.teamLead.email,
         role: "Team Lead",
-        gender: workspace.teamLead.gender,
+        gender: ws.teamLead.gender,
         isLead: true
       });
     }
 
-    if (Array.isArray(workspace.members)) {
-      for (const m of workspace.members) {
-        if (m.name && m.email.toLowerCase() !== workspace.teamLead?.email.toLowerCase()) {
+    if (Array.isArray(ws.members)) {
+      for (const m of ws.members) {
+        if (m.name && m.email.toLowerCase() !== ws.teamLead?.email.toLowerCase()) {
           list.push({
             id: m.id || m.email,
             name: m.name,
@@ -285,7 +307,7 @@ export const WorkspaceChatModal = ({
       }
     }
     return list;
-  }, [workspace]);
+  }, [currentWs, workspace]);
 
   const memberNames = useMemo(
     () => mentionableMembers.map((m) => m.name),
@@ -435,10 +457,11 @@ export const WorkspaceChatModal = ({
     );
   });
 
-  if (!isOpen || !workspace || !mounted) return null;
+  const effectiveWs = currentWs || workspace;
+  if (!isOpen || !workspace || !effectiveWs || !mounted) return null;
 
-  const membersCount = (workspace.members?.length || 0) + 1;
-  const leadEmail = workspace.teamLead?.email || workspace.creatorEmail || "";
+  const membersCount = (effectiveWs.members?.length || 0) + 1;
+  const leadEmail = effectiveWs.teamLead?.email || effectiveWs.creatorEmail || "";
 
   return createPortal(
     <>

@@ -144,17 +144,11 @@ export const normalizeTaskDates = (task: Task): Task => {
   let startDate = typeof task.startDate === "string" && task.startDate.trim() ? task.startDate.trim() : null;
   let dueDate = typeof task.dueDate === "string" && task.dueDate.trim() ? task.dueDate.trim() : null;
 
-  if (startDate && isNaN(Date.parse(startDate))) startDate = null;
-  if (dueDate && isNaN(Date.parse(dueDate))) dueDate = null;
-
-  if (!startDate && !dueDate) {
-    const baseDate = createdAt && !isNaN(Date.parse(createdAt)) ? createdAt.slice(0, 10) : now.slice(0, 10);
-    startDate = baseDate;
-    dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
-  } else if (!startDate && dueDate) {
-    startDate = new Date(Date.parse(dueDate) - 3 * 86_400_000).toISOString().slice(0, 10);
-  } else if (startDate && !dueDate) {
-    dueDate = new Date(Date.parse(startDate) + 3 * 86_400_000).toISOString().slice(0, 10);
+  if (startDate) {
+    startDate = !isNaN(Date.parse(startDate)) ? startDate.slice(0, 10) : null;
+  }
+  if (dueDate) {
+    dueDate = !isNaN(Date.parse(dueDate)) ? dueDate.slice(0, 10) : null;
   }
 
   return {
@@ -222,6 +216,142 @@ export const deleteWorkspace = (workspaceId: string): Workspace | null => {
   }
 };
 
+export const mergeWorkspaceMembers = (
+  existing: readonly WorkspaceMember[],
+  incoming: readonly WorkspaceMember[]
+): WorkspaceMember[] => {
+  const map = new Map<string, WorkspaceMember>();
+  for (const m of existing) {
+    if (m && m.email) map.set(m.email.toLowerCase().trim(), m);
+  }
+  for (const m of incoming) {
+    if (m && m.email) {
+      const key = m.email.toLowerCase().trim();
+      const current = map.get(key);
+      map.set(key, {
+        id: m.id || current?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: m.name || current?.name || key.split("@")[0] || "Team Member",
+        email: key,
+        role: m.role || current?.role || "Developer",
+        gender: m.gender || current?.gender || "neutral"
+      });
+    }
+  }
+  return Array.from(map.values());
+};
+
+export const syncWorkspaceMembersToServer = async (
+  workspaceId: string,
+  members: readonly WorkspaceMember[],
+  ws?: Workspace | null
+): Promise<void> => {
+  if (typeof window === "undefined" || !workspaceId) return;
+  try {
+    const targetWs = ws || getAllWorkspaces().find((w) => w.id === workspaceId);
+    await fetch("/api/workspace-members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        workspaceName: targetWs?.name,
+        slug: targetWs?.slug,
+        icon: targetWs?.icon,
+        department: targetWs?.department,
+        creatorEmail: targetWs?.creatorEmail,
+        teamLead: targetWs?.teamLead,
+        members,
+        sender: targetWs?.teamLead?.name || "Member Directory"
+      })
+    });
+  } catch {}
+};
+
+export const syncWorkspaceMembersWithServer = async (workspaceId: string): Promise<WorkspaceMember[]> => {
+  if (typeof window === "undefined" || !workspaceId) return [];
+  try {
+    const res = await fetch(`/api/workspace-members?workspaceId=${encodeURIComponent(workspaceId)}`, {
+      cache: "no-store",
+      headers: { Pragma: "no-cache" }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || !Array.isArray(data.members)) return [];
+
+    const remoteMembers: WorkspaceMember[] = data.members;
+    const all = getAllWorkspaces();
+    const target = all.find((w) => w.id === workspaceId);
+    if (!target) return remoteMembers;
+
+    const merged = mergeWorkspaceMembers(target.members || [], remoteMembers);
+    const hasDiff = merged.length !== target.members.length ||
+      merged.some((m, idx) => target.members[idx]?.email?.toLowerCase() !== m.email.toLowerCase());
+
+    if (hasDiff) {
+      const updated: Workspace = { ...target, members: merged };
+      saveActiveWorkspace(updated);
+      window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: merged } }));
+      window.dispatchEvent(new Event("projexa_session_change"));
+    }
+    return merged;
+  } catch {
+    return [];
+  }
+};
+
+export const reconcileMembersFromTasks = (workspaceId: string, tasks: readonly Task[]): void => {
+  if (typeof window === "undefined" || !workspaceId || !Array.isArray(tasks) || tasks.length === 0) return;
+  try {
+    const all = getAllWorkspaces();
+    const target = all.find((w) => w.id === workspaceId);
+    if (!target) return;
+
+    const existingMembers = target.members || [];
+    const leadEmail = target.teamLead?.email?.toLowerCase();
+    const leadName = target.teamLead?.name?.toLowerCase();
+
+    const newMembersToAdd: WorkspaceMember[] = [];
+    for (const t of tasks) {
+      if (!t.assigneeId || typeof t.assigneeId !== "string") continue;
+      const cleanAssignee = t.assigneeId.trim();
+      if (!cleanAssignee) continue;
+      const lower = cleanAssignee.toLowerCase();
+
+      // Check if it's the team lead
+      if (lower === leadEmail || lower === leadName) continue;
+
+      // Check if already in members
+      const exists = existingMembers.some(
+        (m) => m.name.toLowerCase() === lower || m.email.toLowerCase() === lower || m.id === cleanAssignee
+      ) || newMembersToAdd.some(
+        (m) => m.name.toLowerCase() === lower || m.email.toLowerCase() === lower
+      );
+
+      if (!exists) {
+        const isEmail = cleanAssignee.includes("@");
+        const displayName = isEmail ? cleanAssignee.split("@")[0] || "Team Member" : cleanAssignee;
+        const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+        const email = isEmail ? cleanAssignee.toLowerCase() : `${displayName.toLowerCase().replace(/[^a-z0-9]+/g, ".")}@workspace.local`;
+        newMembersToAdd.push({
+          id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: formattedName,
+          email,
+          role: "Developer",
+          gender: "neutral"
+        });
+      }
+    }
+
+    if (newMembersToAdd.length > 0) {
+      const merged = mergeWorkspaceMembers(existingMembers, newMembersToAdd);
+      const updated: Workspace = { ...target, members: merged };
+      saveActiveWorkspace(updated);
+      void syncWorkspaceMembersToServer(workspaceId, merged, updated);
+      window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: merged } }));
+      window.dispatchEvent(new Event("projexa_session_change"));
+    }
+  } catch {}
+};
+
 export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMember): Workspace | null => {
   if (typeof window === "undefined") return null;
   try {
@@ -239,6 +369,9 @@ export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMembe
     }
     const updated: Workspace = { ...target, members: updatedMembers };
     saveActiveWorkspace(updated);
+    void syncWorkspaceMembersToServer(workspaceId, updatedMembers, updated);
+    window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: updatedMembers } }));
+    window.dispatchEvent(new Event("projexa_session_change"));
     return updated;
   } catch (e) {
     console.error("Failed to add member to workspace", e);
@@ -253,11 +386,15 @@ export const removeMemberFromWorkspace = (workspaceId: string, memberIdOrEmail: 
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return null;
     const cleanParam = memberIdOrEmail.toLowerCase();
+    const updatedMembers = target.members.filter((m) => m.id !== memberIdOrEmail && m.email.toLowerCase() !== cleanParam);
     const updated: Workspace = {
       ...target,
-      members: target.members.filter((m) => m.id !== memberIdOrEmail && m.email.toLowerCase() !== cleanParam)
+      members: updatedMembers
     };
     saveActiveWorkspace(updated);
+    void syncWorkspaceMembersToServer(workspaceId, updatedMembers, updated);
+    window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: updatedMembers } }));
+    window.dispatchEvent(new Event("projexa_session_change"));
     return updated;
   } catch (e) {
     console.error("Failed to remove member from workspace", e);
@@ -283,3 +420,4 @@ export const leaveWorkspace = (workspaceId: string, memberEmail: string): void =
     console.error("Failed to leave workspace", e);
   }
 };
+

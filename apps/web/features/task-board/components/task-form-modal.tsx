@@ -24,8 +24,8 @@ export const TaskFormModal = ({
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState("");
   const [gender, setGender] = useState("neutral");
-  const [start, setStart] = useState(() => new Date().toISOString().slice(0, 10));
-  const [due, setDue] = useState(() => new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
+  const [start, setStart] = useState("");
+  const [due, setDue] = useState("");
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -34,8 +34,8 @@ export const TaskFormModal = ({
     setSaving(true);
     const name = assignee.trim();
     const user = name ? (gender === "neutral" ? name : `${name}::${gender}`) : null;
-    const effectiveStart = start || new Date().toISOString().slice(0, 10);
-    const effectiveDue = due || new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const effectiveStart = start.trim() ? start.trim() : null;
+    const effectiveDue = due.trim() ? due.trim() : null;
     try {
       if (await add(status, title.trim(), user, effectiveStart, effectiveDue)) close();
     } finally {
@@ -115,7 +115,18 @@ export const TaskFormModal = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Start Date</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Start Date</label>
+            {start && (
+              <button
+                className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                onClick={() => setStart("")}
+                type="button"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <input
             className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:focus:bg-[#1a2b3f] dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
             onChange={(e) => setStart(e.target.value)}
@@ -124,7 +135,18 @@ export const TaskFormModal = ({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Due Date</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Due Date</label>
+            {due && (
+              <button
+                className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                onClick={() => setDue("")}
+                type="button"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <input
             className="w-full rounded-xl border border-slate-300 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:focus:bg-[#1a2b3f] dark:border-[#293d5c] dark:bg-[#172438] dark:text-white cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
             onChange={(e) => setDue(e.target.value)}

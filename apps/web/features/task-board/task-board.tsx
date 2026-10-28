@@ -17,6 +17,8 @@ import {
   normalizeTaskDates,
   getRegisteredUsers,
   useWorkspaceSocket,
+  reconcileMembersFromTasks,
+  syncWorkspaceMembersWithServer,
   type UserSession,
   type Workspace,
   type WorkspaceMember
@@ -142,12 +144,17 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         }
       }
     };
+    const handleMembersChange = () => {
+      setWorkspace(getActiveWorkspace());
+    };
     window.addEventListener("projexa_session_change", handleSessionChange);
+    window.addEventListener("projexa_workspace_members_change", handleMembersChange);
     window.addEventListener("projexa_tasks_change", handleTasksChange);
     window.addEventListener("nutsyll_tasks_change", handleTasksChange);
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("projexa_session_change", handleSessionChange);
+      window.removeEventListener("projexa_workspace_members_change", handleMembersChange);
       window.removeEventListener("projexa_tasks_change", handleTasksChange);
       window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
       window.removeEventListener("storage", handleStorage);
@@ -169,16 +176,22 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
   // Handle incoming real-time socket updates from team lead or peers
   const handleRemoteTasksUpdated = useCallback((newTasks: readonly Task[], sender?: string) => {
     setTasks(newTasks);
-    if (sender && currentUser && sender.toLowerCase() !== currentUser.name.toLowerCase()) {
-      showToast(`⚡ Real-time update: ${sender} updated board tasks.`);
+    reconcileMembersFromTasks(workspace.id, newTasks);
+    const myName = (currentUser?.name || currentUser?.email || "").toLowerCase();
+    const senderName = sender ? sender.trim() : "";
+    if (senderName && (!myName || senderName.toLowerCase() !== myName)) {
+      showToast(`⚡ Real-time update: ${senderName} updated task status.`);
     }
-  }, [currentUser, showToast]);
+  }, [currentUser, showToast, workspace.id]);
 
   const { connected: socketConnected, broadcastTasks } = useWorkspaceSocket({
     workspaceId: workspace.id,
     currentUser,
     apiBaseUrl,
-    onTasksUpdated: handleRemoteTasksUpdated
+    onTasksUpdated: handleRemoteTasksUpdated,
+    onMembersUpdated: (_newMembers) => {
+      setWorkspace(getActiveWorkspace());
+    }
   });
 
   const load = useCallback(async () => {
@@ -189,6 +202,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const localTasks = getWorkspaceTasks(ws.id);
     if (localTasks && localTasks.length > 0) {
       setTasks(localTasks);
+      reconcileMembersFromTasks(ws.id, localTasks);
       setLoading(false);
       // Synchronize to server cache so joining members immediately receive them
       void fetch("/api/workspace-tasks", {
@@ -208,6 +222,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
           const normalized = data.tasks.map(normalizeTaskDates);
           setTasks(normalized);
           saveWorkspaceTasks(ws.id, normalized);
+          reconcileMembersFromTasks(ws.id, normalized);
           setLoading(false);
           return;
         }
@@ -255,13 +270,14 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const previous = tasks.find((t) => t.id === id);
     if (!previous || previous.status === status || saving.has(id)) return;
 
-    // Permissions: Leads have full control; Developers can ONLY move their own tasks
+    // Permissions: Leads and Workspace Members can progress tasks on sprint board
     const assignedClean = previous.assigneeId ? clean(previous.assigneeId).toLowerCase() : "";
     const memberNameClean = (currentUser?.name ?? "").trim().toLowerCase();
     const memberEmailClean = (currentUser?.email ?? "").trim().toLowerCase();
     const memberIdClean = (currentUser?.id ?? "").trim().toLowerCase();
 
     const isAssignedToMe = Boolean(
+      !previous.assigneeId ||
       (memberIdClean && previous.assigneeId && previous.assigneeId.toLowerCase() === memberIdClean) ||
       (memberNameClean && assignedClean && (
         assignedClean === memberNameClean ||
@@ -273,8 +289,23 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
         previous.assigneeId.toLowerCase().includes(memberEmailClean)
       ))
     );
-    if (!isTeamLead && !isAssignedToMe) {
-      showToast("Permission denied: You can only move tasks assigned to you.");
+
+    const isMember = Boolean(
+      currentUser &&
+      workspace &&
+      (
+        isTeamLead ||
+        workspace.members?.some(
+          (m) =>
+            m.email.toLowerCase() === currentUser.email.toLowerCase() ||
+            m.name.toLowerCase() === currentUser.name.toLowerCase() ||
+            m.id === currentUser.id
+        )
+      )
+    );
+
+    if (!isTeamLead && !isAssignedToMe && !isMember) {
+      showToast("Permission denied: You must be a workspace member to move tasks.");
       return;
     }
 
@@ -301,8 +332,8 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
   const add = async (s: TaskStatus, t: string, a: string | null, st: string | null, d: string | null): Promise<boolean> => {
     const tempId = `task-${Date.now()}`;
     const now = new Date().toISOString();
-    const effectiveStart = st || now.slice(0, 10);
-    const effectiveDue = d || new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const effectiveStart = st && st.trim() ? st.trim() : null;
+    const effectiveDue = d && d.trim() ? d.trim() : null;
     const newTask: Task = {
       id: tempId,
       title: t,

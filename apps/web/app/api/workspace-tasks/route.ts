@@ -11,7 +11,9 @@ type WorkspaceRecord = {
 };
 
 // In-memory cache on Next.js server across sessions/incognito
-const globalWorkspaceTasks = new Map<string, WorkspaceRecord>();
+const globalWorkspaceTasks: Map<string, WorkspaceRecord> =
+  (globalThis as unknown as { __projexaTasks?: Map<string, WorkspaceRecord> }).__projexaTasks ??
+  ((globalThis as unknown as { __projexaTasks: Map<string, WorkspaceRecord> }).__projexaTasks = new Map());
 
 const NO_CACHE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

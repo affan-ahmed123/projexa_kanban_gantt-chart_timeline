@@ -4,7 +4,12 @@ import { Crown, Mail, Shield, User, UserCheck, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { getAvatarUrl } from "../utils/profile-avatar";
-import type { Workspace, WorkspaceMember } from "../storage/workspace-storage";
+import {
+  getActiveWorkspace,
+  syncWorkspaceMembersWithServer,
+  type Workspace,
+  type WorkspaceMember
+} from "../storage/workspace-storage";
 import type { UserSession } from "../storage/auth-storage";
 
 type WorkspaceMembersModalProps = Readonly<{
@@ -41,19 +46,52 @@ export const WorkspaceMembersModal = ({
   onOpenInvite
 }: WorkspaceMembersModalProps): ReactElement | null => {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const [activeWs, setActiveWs] = useState<Workspace | null>(workspace);
 
-  if (!isOpen || !workspace || !mounted) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setActiveWs(workspace || getActiveWorkspace());
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const current = getActiveWorkspace();
+    if (current && current.id) {
+      setActiveWs(current);
+      void syncWorkspaceMembersWithServer(current.id).then((updatedMembers) => {
+        if (updatedMembers && updatedMembers.length > 0) {
+          setActiveWs(getActiveWorkspace());
+        }
+      });
+    }
+
+    const handleMembersChange = () => {
+      setActiveWs(getActiveWorkspace());
+    };
+
+    window.addEventListener("projexa_workspace_members_change", handleMembersChange);
+    window.addEventListener("projexa_session_change", handleMembersChange);
+    return () => {
+      window.removeEventListener("projexa_workspace_members_change", handleMembersChange);
+      window.removeEventListener("projexa_session_change", handleMembersChange);
+    };
+  }, [isOpen]);
+
+  const currentWorkspace = activeWs || workspace;
+  if (!isOpen || !currentWorkspace || !mounted) return null;
 
   const isTeamLead = Boolean(
     currentUser &&
-    (currentUser.email.toLowerCase() === workspace.creatorEmail?.toLowerCase() ||
-      currentUser.email.toLowerCase() === workspace.teamLead?.email?.toLowerCase())
+    (currentUser.email.toLowerCase() === currentWorkspace.creatorEmail?.toLowerCase() ||
+      currentUser.email.toLowerCase() === currentWorkspace.teamLead?.email?.toLowerCase())
   );
 
-  const membersList: WorkspaceMember[] = workspace.members || [];
-  const leadName = workspace.teamLead?.name || "Team Lead";
-  const leadEmail = workspace.teamLead?.email || workspace.creatorEmail || "lead@example.com";
+  const membersList: WorkspaceMember[] = currentWorkspace.members || [];
+  const leadName = currentWorkspace.teamLead?.name || "Team Lead";
+  const leadEmail = currentWorkspace.teamLead?.email || currentWorkspace.creatorEmail || "lead@example.com";
 
   // Check if lead is already in members array, else display lead at top
   const leadAlreadyInMembers = membersList.some(
@@ -88,7 +126,7 @@ export const WorkspaceMembersModal = ({
                   {totalMembersCount} {totalMembersCount === 1 ? "member" : "members"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{workspace.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{currentWorkspace.name}</p>
             </div>
           </div>
           <button

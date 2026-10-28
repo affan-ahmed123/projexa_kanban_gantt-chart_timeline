@@ -27,6 +27,9 @@ export type WebSocketService = Readonly<{
   getWorkspaceTasks: (workspaceId: string) => readonly Task[] | null;
   setWorkspaceTasks: (workspaceId: string, tasks: readonly Task[]) => void;
   broadcastTasksUpdated: (workspaceId: string, tasks: readonly Task[], sender?: string) => void;
+  getWorkspaceMembers: (workspaceId: string) => readonly unknown[] | null;
+  setWorkspaceMembers: (workspaceId: string, members: readonly unknown[]) => void;
+  broadcastMembersUpdated: (workspaceId: string, members: readonly unknown[], sender?: string) => void;
   getWorkspaceMessages: (workspaceId: string) => readonly ChatMessage[];
   addWorkspaceMessage: (workspaceId: string, message: ChatMessage) => void;
   broadcastChatMessage: (workspaceId: string, message: ChatMessage) => void;
@@ -51,6 +54,7 @@ export const createWebSocketService = ({
   const wss = new WebSocketServer({ server, path: "/ws" });
   const workspaceClients = new Map<string, Set<WebSocket>>();
   const workspaceTasksCache = new Map<string, readonly Task[]>();
+  const workspaceMembersCache = new Map<string, readonly unknown[]>();
   const workspaceMessagesCache = new Map<string, ChatMessage[]>();
   const clientMeta = new Map<WebSocket, ClientInfo>();
 
@@ -99,6 +103,16 @@ export const createWebSocketService = ({
             }));
           }
 
+          // Send cached workspace members immediately if available
+          const cachedMembers = workspaceMembersCache.get(workspaceId);
+          if (cachedMembers && cachedMembers.length > 0) {
+            socket.send(JSON.stringify({
+              type: "members_init",
+              workspaceId,
+              members: cachedMembers
+            }));
+          }
+
           // Send cached chat messages immediately if available
           const cachedMessages = workspaceMessagesCache.get(workspaceId);
           if (cachedMessages && cachedMessages.length > 0) {
@@ -107,6 +121,26 @@ export const createWebSocketService = ({
               workspaceId,
               messages: cachedMessages
             }));
+          }
+        } else if (type === "sync_members" || type === "members_update") {
+          const workspaceId = typeof data.workspaceId === "string" ? data.workspaceId : (meta?.workspaceId ?? "");
+          const members = Array.isArray(data.members) ? (data.members as unknown[]) : null;
+          if (workspaceId && members) {
+            workspaceMembersCache.set(workspaceId, members);
+            const clients = workspaceClients.get(workspaceId);
+            if (clients) {
+              const payload = JSON.stringify({
+                type: "members_updated",
+                workspaceId,
+                members,
+                sender: meta?.userName || "Team Lead"
+              });
+              for (const client of clients) {
+                if (client !== socket && client.readyState === WebSocket.OPEN) {
+                  client.send(payload);
+                }
+              }
+            }
           }
         } else if (type === "sync_tasks" || type === "tasks_update") {
           const workspaceId = typeof data.workspaceId === "string" ? data.workspaceId : (meta?.workspaceId ?? "");
@@ -259,6 +293,41 @@ export const createWebSocketService = ({
           type: "tasks_updated",
           workspaceId,
           tasks,
+          sender: sender || "Team Lead"
+        });
+        for (const client of clients) {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(payload);
+          }
+        }
+      }
+    },
+    getWorkspaceMembers: (workspaceId: string) => workspaceMembersCache.get(workspaceId) ?? null,
+    setWorkspaceMembers: (workspaceId: string, members: readonly unknown[]) => {
+      workspaceMembersCache.set(workspaceId, members);
+      const clients = workspaceClients.get(workspaceId);
+      if (clients) {
+        const payload = JSON.stringify({
+          type: "members_updated",
+          workspaceId,
+          members,
+          sender: "System"
+        });
+        for (const client of clients) {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(payload);
+          }
+        }
+      }
+    },
+    broadcastMembersUpdated: (workspaceId: string, members: readonly unknown[], sender?: string) => {
+      workspaceMembersCache.set(workspaceId, members);
+      const clients = workspaceClients.get(workspaceId);
+      if (clients) {
+        const payload = JSON.stringify({
+          type: "members_updated",
+          workspaceId,
+          members,
           sender: sender || "Team Lead"
         });
         for (const client of clients) {

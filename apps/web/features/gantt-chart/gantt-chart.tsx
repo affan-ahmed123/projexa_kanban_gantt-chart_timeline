@@ -11,6 +11,7 @@ import {
   saveWorkspaceTasks,
   normalizeTaskDates,
   useWorkspaceSocket,
+  reconcileMembersFromTasks,
   type UserSession,
   type Workspace
 } from "@/features/workspace-foundation/public";
@@ -61,7 +62,11 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
     workspaceId: workspace.id,
     currentUser,
     apiBaseUrl,
-    onTasksUpdated: (newTasks) => setTasks(newTasks)
+    onTasksUpdated: (newTasks) => {
+      setTasks(newTasks);
+      reconcileMembersFromTasks(workspace.id, newTasks);
+    },
+    onMembersUpdated: () => setWorkspace(getActiveWorkspace())
   });
 
   const loadTasks = useCallback(async (): Promise<void> => {
@@ -84,6 +89,7 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
           const normalized = data.tasks.map(normalizeTaskDates);
           setTasks(normalized);
           saveWorkspaceTasks(ws.id, normalized);
+          reconcileMembersFromTasks(ws.id, normalized);
           setLoading(false);
           return;
         }
@@ -133,11 +139,13 @@ export const GanttChart = ({ apiBaseUrl }: GanttChartProps): ReactElement => {
       }
     };
     window.addEventListener("projexa_session_change", handleSession);
+    window.addEventListener("projexa_workspace_members_change", handleSession);
     window.addEventListener("projexa_tasks_change", handleTasksChange);
     window.addEventListener("nutsyll_tasks_change", handleTasksChange);
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("projexa_session_change", handleSession);
+      window.removeEventListener("projexa_workspace_members_change", handleSession);
       window.removeEventListener("projexa_tasks_change", handleTasksChange);
       window.removeEventListener("nutsyll_tasks_change", handleTasksChange);
       window.removeEventListener("storage", handleStorage);

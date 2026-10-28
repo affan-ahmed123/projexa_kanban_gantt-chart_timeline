@@ -25,7 +25,10 @@ export {
   normalizeTaskDates,
   DEFAULT_WORKSPACE,
   DEFAULT_LEAD,
-  DEFAULT_STARTER_TASKS
+  DEFAULT_STARTER_TASKS,
+  syncWorkspaceMembersWithServer,
+  reconcileMembersFromTasks,
+  mergeWorkspaceMembers
 } from "./workspace.service";
 export type { Gender } from "./utils/profile-avatar";
 export type { Workspace, WorkspaceMember, UserSession, StoredUser, InvitationPayload } from "./workspace.service";

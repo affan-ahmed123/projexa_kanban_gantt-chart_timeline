@@ -51,7 +51,8 @@ export const TaskBoardCard = ({
     ))
   );
 
-  const canMove = isTeamLead || isAssignedToMe;
+  const isMember = Boolean(memberNameClean || memberEmailClean || memberIdClean);
+  const canMove = isTeamLead || isAssignedToMe || isMember || !task.assigneeId;
   const canDelete = isTeamLead;
 
   return (

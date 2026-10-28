@@ -22,6 +22,7 @@ import {
   getActiveWorkspace,
   getCurrentUser,
   setCurrentUser,
+  syncWorkspaceMembersWithServer,
   type UserSession,
   type Workspace
 } from "../workspace.service";
@@ -76,17 +77,28 @@ export const ViewHeader = ({
   const [chatModalOpen, setChatModalOpen] = useState(false);
 
   useEffect(() => {
-    setWorkspace(getActiveWorkspace());
+    const ws = getActiveWorkspace();
+    setWorkspace(ws);
     setCurrentUserState(getCurrentUser());
+    if (ws?.id) {
+      void syncWorkspaceMembersWithServer(ws.id).then((updatedMembers) => {
+        if (updatedMembers && updatedMembers.length > 0) {
+          setWorkspace(getActiveWorkspace());
+        }
+      });
+    }
+
     const handleSessionChange = () => {
       setCurrentUserState(getCurrentUser());
       setWorkspace(getActiveWorkspace());
     };
     window.addEventListener("projexa_session_change", handleSessionChange);
     window.addEventListener("nutsyll_session_change", handleSessionChange);
+    window.addEventListener("projexa_workspace_members_change", handleSessionChange);
     return () => {
       window.removeEventListener("projexa_session_change", handleSessionChange);
       window.removeEventListener("nutsyll_session_change", handleSessionChange);
+      window.removeEventListener("projexa_workspace_members_change", handleSessionChange);
     };
   }, []);
 

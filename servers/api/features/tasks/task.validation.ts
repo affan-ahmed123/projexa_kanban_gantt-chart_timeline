@@ -28,4 +28,4 @@ export const updateTaskInputSchema = z.object({
   message: "At least one task field must be provided."
 });
 
-export const taskIdSchema = z.string().regex(/^[a-f\d]{24}$/i);
+export const taskIdSchema = z.string().trim().min(1);

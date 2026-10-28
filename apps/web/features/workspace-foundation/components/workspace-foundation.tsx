@@ -23,6 +23,8 @@ import {
   sendInvitationEmail,
   setCurrentUser,
   switchActiveWorkspace,
+  syncWorkspaceMembersToServer,
+  syncWorkspaceMembersWithServer,
   type Workspace,
   type WorkspaceMember,
   type UserSession
@@ -142,6 +144,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
             createdAt: new Date().toISOString()
           };
           saveActiveWorkspace(targetWs);
+          void syncWorkspaceMembersWithServer(wsId);
           if (!getWorkspaceTasks(wsId)) {
             saveWorkspaceTasks(wsId, []);
           }
@@ -246,6 +249,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
     };
     saveActiveWorkspace(newWorkspace);
     saveWorkspaceTasks(wsId, []);
+    void syncWorkspaceMembersToServer(wsId, finalMembers, newWorkspace);
     const invited = finalMembers.filter((m) => m.id !== "mem-lead" && m.email.toLowerCase() !== cleanLeadEmail);
     if (invited.length > 0) {
       void Promise.all(invited.map((m) => sendInvitationEmail({
@@ -306,6 +310,7 @@ export const WorkspaceFoundation = ({ apiBaseUrl }: WorkspaceFoundationProps): R
                     createdAt: new Date().toISOString()
                   };
                   saveActiveWorkspace(ws);
+                  void syncWorkspaceMembersWithServer(pending.workspaceId);
                   if (!getWorkspaceTasks(pending.workspaceId)) {
                     saveWorkspaceTasks(pending.workspaceId, []);
                   }
