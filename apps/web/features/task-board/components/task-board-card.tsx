@@ -37,6 +37,7 @@ export const TaskBoardCard = ({
   const memberIdClean = (currentUserId ?? "").trim().toLowerCase();
 
   const isAssignedToMe = Boolean(
+    (memberIdClean && task.assigneeId && task.assigneeId.toLowerCase() === memberIdClean) ||
     (memberNameClean && assignedClean && (
       assignedClean === memberNameClean ||
       memberNameClean.includes(assignedClean) ||
@@ -45,14 +46,11 @@ export const TaskBoardCard = ({
     (memberEmailClean && task.assigneeId && (
       task.assigneeId.toLowerCase() === memberEmailClean ||
       task.assigneeId.toLowerCase().includes(memberEmailClean)
-    )) ||
-    (memberIdClean && task.assigneeId && (
-      task.assigneeId.toLowerCase() === memberIdClean
     ))
   );
 
-  const isMember = Boolean(memberNameClean || memberEmailClean || memberIdClean);
-  const canMove = isTeamLead || isAssignedToMe || isMember || !task.assigneeId;
+  // Restricted: Team Lead can move ANY task; Team Members can ONLY drag & drop tasks assigned to THEM
+  const canMove = isTeamLead || isAssignedToMe;
   const canDelete = isTeamLead;
 
   return (

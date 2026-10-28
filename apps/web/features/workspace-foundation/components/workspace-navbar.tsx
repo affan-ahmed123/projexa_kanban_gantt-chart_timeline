@@ -62,7 +62,7 @@ export const WorkspaceNavbar = ({
             />
             <span className="max-w-[85px] sm:max-w-[140px] truncate">{currentUser.name}</span>
             <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hidden sm:inline">
-              ({currentUser.role || "Owner"})
+              (Owner)
             </span>
           </div>
         )}

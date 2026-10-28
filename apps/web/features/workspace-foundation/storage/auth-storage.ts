@@ -150,7 +150,7 @@ export const authenticateUser = (
       id: matched.id,
       name: matched.name,
       email: matched.email,
-      role: matched.role || "Developer",
+      role: matched.role || "Owner",
       gender: matched.gender
     };
     setCurrentUser(session);

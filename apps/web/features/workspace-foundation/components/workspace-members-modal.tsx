@@ -7,6 +7,7 @@ import { getAvatarUrl } from "../utils/profile-avatar";
 import {
   getActiveWorkspace,
   syncWorkspaceMembersWithServer,
+  isRealMember,
   type Workspace,
   type WorkspaceMember
 } from "../storage/workspace-storage";
@@ -89,7 +90,7 @@ export const WorkspaceMembersModal = ({
       currentUser.email.toLowerCase() === currentWorkspace.teamLead?.email?.toLowerCase())
   );
 
-  const membersList: WorkspaceMember[] = currentWorkspace.members || [];
+  const membersList: WorkspaceMember[] = (currentWorkspace.members || []).filter(isRealMember);
   const leadName = currentWorkspace.teamLead?.name || "Team Lead";
   const leadEmail = currentWorkspace.teamLead?.email || currentWorkspace.creatorEmail || "lead@example.com";
 

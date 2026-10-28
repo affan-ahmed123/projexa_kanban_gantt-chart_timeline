@@ -41,6 +41,15 @@ const NO_CACHE_HEADERS = {
   Expires: "0"
 };
 
+const isRealMemberRecord = (m: WorkspaceMemberRecord | null | undefined): m is WorkspaceMemberRecord => {
+  if (!m || typeof m !== "object" || !m.email) return false;
+  const cleanEmail = m.email.toLowerCase().trim();
+  const cleanName = (m.name || "").trim();
+  if (cleanEmail.endsWith("@workspace.local") || cleanEmail.includes("workspace.local")) return false;
+  if (cleanName.includes("::")) return false;
+  return true;
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const workspaceId = searchParams.get("workspaceId");
@@ -59,7 +68,7 @@ export async function GET(request: Request) {
       department: record?.department,
       creatorEmail: record?.creatorEmail,
       teamLead: record?.teamLead,
-      members: record ? record.members : [],
+      members: record ? record.members.filter(isRealMemberRecord) : [],
       version: record ? record.version : 0,
       updatedAt: record ? record.updatedAt : 0,
       lastSender: record?.lastSender
@@ -141,18 +150,19 @@ export async function POST(request: Request) {
     // Merge members list without duplicates
     const mergedMap = new Map<string, WorkspaceMemberRecord>();
     for (const m of record.members) {
-      if (m?.email) mergedMap.set(m.email.toLowerCase().trim(), m);
+      if (isRealMemberRecord(m)) mergedMap.set(m.email.toLowerCase().trim(), m);
     }
 
     // Add members from array
     if (Array.isArray(members)) {
       for (const m of members) {
-        if (m && typeof m.email === "string" && m.email.trim()) {
+        if (isRealMemberRecord(m)) {
           const emailKey = m.email.trim().toLowerCase();
           const existing = mergedMap.get(emailKey);
+          const cleanName = m.name?.replace(/::(male|female)$/, "") || existing?.name || emailKey.split("@")[0] || "Team Member";
           mergedMap.set(emailKey, {
             id: m.id || existing?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: m.name || existing?.name || emailKey.split("@")[0] || "Team Member",
+            name: cleanName,
             email: emailKey,
             role: m.role || existing?.role || "Developer",
             gender: m.gender || existing?.gender || "neutral"
@@ -162,12 +172,13 @@ export async function POST(request: Request) {
     }
 
     // Add single member if provided
-    if (member && typeof member.email === "string" && member.email.trim()) {
+    if (isRealMemberRecord(member)) {
       const emailKey = member.email.trim().toLowerCase();
       const existing = mergedMap.get(emailKey);
+      const cleanName = member.name?.replace(/::(male|female)$/, "") || existing?.name || emailKey.split("@")[0] || "Team Member";
       mergedMap.set(emailKey, {
         id: member.id || existing?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: member.name || existing?.name || emailKey.split("@")[0] || "Team Member",
+        name: cleanName,
         email: emailKey,
         role: member.role || existing?.role || "Developer",
         gender: member.gender || existing?.gender || "neutral"

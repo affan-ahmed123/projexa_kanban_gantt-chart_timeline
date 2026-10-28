@@ -111,7 +111,7 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
           id: existingAccount?.id || `usr-${Date.now()}`,
           name: cleanName,
           email: cleanEmail,
-          role: inviteRole,
+          role: "Owner",
           gender: existingAccount?.gender || "neutral"
         };
         setCurrentUser(session);
@@ -277,7 +277,6 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
     const memberIdClean = (currentUser?.id ?? "").trim().toLowerCase();
 
     const isAssignedToMe = Boolean(
-      !previous.assigneeId ||
       (memberIdClean && previous.assigneeId && previous.assigneeId.toLowerCase() === memberIdClean) ||
       (memberNameClean && assignedClean && (
         assignedClean === memberNameClean ||
@@ -290,22 +289,8 @@ export const TaskBoard = ({ apiBaseUrl }: Props): ReactElement => {
       ))
     );
 
-    const isMember = Boolean(
-      currentUser &&
-      workspace &&
-      (
-        isTeamLead ||
-        workspace.members?.some(
-          (m) =>
-            m.email.toLowerCase() === currentUser.email.toLowerCase() ||
-            m.name.toLowerCase() === currentUser.name.toLowerCase() ||
-            m.id === currentUser.id
-        )
-      )
-    );
-
-    if (!isTeamLead && !isAssignedToMe && !isMember) {
-      showToast("Permission denied: You must be a workspace member to move tasks.");
+    if (!isTeamLead && !isAssignedToMe) {
+      showToast("Restricted: You can only move tasks assigned to you.");
       return;
     }
 

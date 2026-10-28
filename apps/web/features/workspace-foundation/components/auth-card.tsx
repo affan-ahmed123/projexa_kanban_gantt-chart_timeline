@@ -171,12 +171,11 @@ export const AuthCard = ({
         return;
       }
       const detected = detectGender(name);
-      const assignedRole: WorkspaceMember["role"] = (inviteRole as WorkspaceMember["role"]) || "Developer";
       const regRes = registerUser({
         name,
         email: cleanEmail,
         password,
-        role: assignedRole,
+        role: "Owner",
         gender: detected === "female" ? "female" : "male",
         autoLogin: false
       });

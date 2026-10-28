@@ -124,7 +124,18 @@ export const createWebSocketService = ({
           }
         } else if (type === "sync_members" || type === "members_update") {
           const workspaceId = typeof data.workspaceId === "string" ? data.workspaceId : (meta?.workspaceId ?? "");
-          const members = Array.isArray(data.members) ? (data.members as unknown[]) : null;
+          const rawMembers = Array.isArray(data.members) ? (data.members as unknown[]) : null;
+          const members = rawMembers
+            ? rawMembers.filter((m: unknown) => {
+                if (!m || typeof m !== "object") return false;
+                const rec = m as { email?: string; name?: string };
+                if (!rec.email || typeof rec.email !== "string") return false;
+                const lower = rec.email.toLowerCase().trim();
+                if (lower.endsWith("@workspace.local") || lower.includes("workspace.local")) return false;
+                if (typeof rec.name === "string" && rec.name.includes("::")) return false;
+                return true;
+              })
+            : null;
           if (workspaceId && members) {
             workspaceMembersCache.set(workspaceId, members);
             const clients = workspaceClients.get(workspaceId);

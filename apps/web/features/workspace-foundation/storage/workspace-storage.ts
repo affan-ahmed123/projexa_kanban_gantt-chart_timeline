@@ -43,6 +43,15 @@ export const EMPTY_WORKSPACE: Workspace = {
 export const DEFAULT_WORKSPACE: Workspace = EMPTY_WORKSPACE;
 export const DEFAULT_STARTER_TASKS: readonly Task[] = [];
 
+export const isRealMember = (m: WorkspaceMember | null | undefined): m is WorkspaceMember => {
+  if (!m || typeof m !== "object" || !m.email) return false;
+  const cleanEmail = m.email.toLowerCase().trim();
+  const cleanName = (m.name || "").trim();
+  if (cleanEmail.endsWith("@workspace.local") || cleanEmail.includes("workspace.local")) return false;
+  if (cleanName.includes("::")) return false;
+  return true;
+};
+
 export const getAllWorkspaces = (): Workspace[] => {
   if (typeof window === "undefined") return [];
   try {
@@ -50,8 +59,16 @@ export const getAllWorkspaces = (): Workspace[] => {
     if (!raw) return [];
     const list = JSON.parse(raw) as Workspace[];
     if (Array.isArray(list)) {
-      const cleaned = list.filter((w) => w.id && w.id !== "ws-primary");
-      if (cleaned.length !== list.length) {
+      let changed = false;
+      const cleaned = list
+        .filter((w) => w.id && w.id !== "ws-primary")
+        .map((w) => {
+          const originalCount = w.members?.length || 0;
+          const filteredMembers = (w.members || []).filter(isRealMember);
+          if (filteredMembers.length !== originalCount) changed = true;
+          return { ...w, members: filteredMembers };
+        });
+      if (changed || cleaned.length !== list.length) {
         localStorage.setItem("projexa_workspaces", JSON.stringify(cleaned));
       }
       return cleaned;
@@ -102,6 +119,12 @@ export const getActiveWorkspace = (): Workspace => {
     if (raw) {
       const parsed = JSON.parse(raw) as Workspace;
       if (parsed && parsed.id && parsed.id !== "ws-primary") {
+        const filteredMembers = (parsed.members || []).filter(isRealMember);
+        if (filteredMembers.length !== (parsed.members?.length || 0)) {
+          const updated = { ...parsed, members: filteredMembers };
+          saveActiveWorkspace(updated);
+          return updated;
+        }
         return parsed;
       }
       localStorage.removeItem("projexa_active_workspace");
@@ -222,15 +245,16 @@ export const mergeWorkspaceMembers = (
 ): WorkspaceMember[] => {
   const map = new Map<string, WorkspaceMember>();
   for (const m of existing) {
-    if (m && m.email) map.set(m.email.toLowerCase().trim(), m);
+    if (isRealMember(m)) map.set(m.email.toLowerCase().trim(), m);
   }
   for (const m of incoming) {
-    if (m && m.email) {
+    if (isRealMember(m)) {
       const key = m.email.toLowerCase().trim();
       const current = map.get(key);
+      const cleanName = m.name?.replace(/::(male|female)$/, "") || current?.name || key.split("@")[0] || "Team Member";
       map.set(key, {
         id: m.id || current?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: m.name || current?.name || key.split("@")[0] || "Team Member",
+        name: cleanName,
         email: key,
         role: m.role || current?.role || "Developer",
         gender: m.gender || current?.gender || "neutral"
@@ -298,55 +322,20 @@ export const syncWorkspaceMembersWithServer = async (workspaceId: string): Promi
   }
 };
 
-export const reconcileMembersFromTasks = (workspaceId: string, tasks: readonly Task[]): void => {
-  if (typeof window === "undefined" || !workspaceId || !Array.isArray(tasks) || tasks.length === 0) return;
+export const reconcileMembersFromTasks = (workspaceId: string, _tasks: readonly Task[]): void => {
+  if (typeof window === "undefined" || !workspaceId) return;
   try {
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return;
 
-    const existingMembers = target.members || [];
-    const leadEmail = target.teamLead?.email?.toLowerCase();
-    const leadName = target.teamLead?.name?.toLowerCase();
-
-    const newMembersToAdd: WorkspaceMember[] = [];
-    for (const t of tasks) {
-      if (!t.assigneeId || typeof t.assigneeId !== "string") continue;
-      const cleanAssignee = t.assigneeId.trim();
-      if (!cleanAssignee) continue;
-      const lower = cleanAssignee.toLowerCase();
-
-      // Check if it's the team lead
-      if (lower === leadEmail || lower === leadName) continue;
-
-      // Check if already in members
-      const exists = existingMembers.some(
-        (m) => m.name.toLowerCase() === lower || m.email.toLowerCase() === lower || m.id === cleanAssignee
-      ) || newMembersToAdd.some(
-        (m) => m.name.toLowerCase() === lower || m.email.toLowerCase() === lower
-      );
-
-      if (!exists) {
-        const isEmail = cleanAssignee.includes("@");
-        const displayName = isEmail ? cleanAssignee.split("@")[0] || "Team Member" : cleanAssignee;
-        const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-        const email = isEmail ? cleanAssignee.toLowerCase() : `${displayName.toLowerCase().replace(/[^a-z0-9]+/g, ".")}@workspace.local`;
-        newMembersToAdd.push({
-          id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          name: formattedName,
-          email,
-          role: "Developer",
-          gender: "neutral"
-        });
-      }
-    }
-
-    if (newMembersToAdd.length > 0) {
-      const merged = mergeWorkspaceMembers(existingMembers, newMembersToAdd);
-      const updated: Workspace = { ...target, members: merged };
+    // Filter out any dummy members that might have previously leaked into storage
+    const realOnly = (target.members || []).filter(isRealMember);
+    if (realOnly.length !== (target.members || []).length) {
+      const updated: Workspace = { ...target, members: realOnly };
       saveActiveWorkspace(updated);
-      void syncWorkspaceMembersToServer(workspaceId, merged, updated);
-      window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: merged } }));
+      void syncWorkspaceMembersToServer(workspaceId, realOnly, updated);
+      window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: realOnly } }));
       window.dispatchEvent(new Event("projexa_session_change"));
     }
   } catch {}
