@@ -29,10 +29,15 @@ let lastOfflineCheck = 0;
 
 export const createTasksApi = (baseUrl?: string, fetcher: typeof fetch = fetch): TasksApi => {
   const isBrowser = typeof window !== "undefined";
-  const isRemoteHost = isBrowser && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+  const currentHost = isBrowser ? window.location.hostname : "";
+  const isRemoteHost = isBrowser && currentHost !== "localhost" && currentHost !== "127.0.0.1";
+  const isVercelOrFrontendHost = isBrowser && Boolean(
+    (baseUrl && baseUrl.includes("vercel.app")) ||
+    (baseUrl && currentHost && baseUrl.includes(currentHost))
+  );
 
-  // If in browser on production/Vercel and baseUrl points to localhost, ignore localhost
-  const resolvedBaseUrl = (isRemoteHost && (!baseUrl || baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")))
+  // If in browser on production/Vercel and baseUrl points to localhost, Vercel, or current frontend host, ignore remote API
+  const resolvedBaseUrl = (isRemoteHost && (!baseUrl || baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1") || isVercelOrFrontendHost))
     ? ""
     : (baseUrl && baseUrl.trim() ? baseUrl : "http://localhost:4000");
 

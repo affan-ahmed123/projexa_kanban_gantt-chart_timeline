@@ -6,10 +6,7 @@ import type { ValidatedWebEnvironment, WebEnvironmentSource } from "@/types";
 export const readWebEnvironment = (
   source: WebEnvironmentSource = process.env
 ): ValidatedWebEnvironment => {
-  const fallback =
-    process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "https://projexa-kanban-gantt-chart-timel-affan-ahmeds-projects-d5fbed2f.vercel.app";
+  const fallback = "http://localhost:4000";
 
   return validateWebEnvironment({
     NEXT_PUBLIC_API_BASE_URL:

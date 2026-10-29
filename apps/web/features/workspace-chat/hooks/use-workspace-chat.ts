@@ -38,8 +38,15 @@ export const useWorkspaceChat = ({
   const getWsUrl = useCallback(() => {
     if (typeof window === "undefined") return null;
     const isHttps = window.location.protocol === "https:";
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const host = window.location.hostname;
+    const isLocalhost = host === "localhost" || host === "127.0.0.1";
     const base = apiBaseUrl && apiBaseUrl.trim() ? apiBaseUrl : "";
+
+    // Vercel serverless platform does not host WebSockets.
+    // Also if base points to the current frontend host, do not connect WS.
+    if (base.includes("vercel.app") || (base && host && base.includes(host))) {
+      return null;
+    }
 
     if (isHttps || !isLocalhost) {
       if (base.startsWith("https://")) {
@@ -49,7 +56,7 @@ export const useWorkspaceChat = ({
     }
 
     if (!base) {
-      return "ws://localhost:4000/ws";
+      return `ws://${host}:4000/ws`;
     }
     return base.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://").replace(/\/+$/, "") + "/ws";
   }, [apiBaseUrl]);

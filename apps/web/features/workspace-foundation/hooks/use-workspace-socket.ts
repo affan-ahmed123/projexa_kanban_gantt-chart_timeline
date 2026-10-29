@@ -58,10 +58,17 @@ export const useWorkspaceSocket = ({
     if (typeof window === "undefined") return null;
     const isHttps = window.location.protocol === "https:";
     const host = window.location.hostname;
+    const isLocalhost = host === "localhost" || host === "127.0.0.1";
     const base = apiBaseUrl && apiBaseUrl.trim() ? apiBaseUrl : "";
 
-    // If running in production (e.g. Vercel) or on HTTPS, require wss
-    if (isHttps) {
+    // Vercel serverless platform does not host WebSockets.
+    // Also if base points to the current frontend host, do not connect WS.
+    if (base.includes("vercel.app") || (base && host && base.includes(host))) {
+      return null;
+    }
+
+    // If running in production (e.g. Vercel) or on HTTPS, require valid secure wss to a dedicated backend
+    if (isHttps || !isLocalhost) {
       if (base.startsWith("https://")) {
         return base.replace(/^https:\/\//, "wss://").replace(/\/+$/, "") + "/ws";
       }
@@ -253,7 +260,7 @@ export const useWorkspaceSocket = ({
     const wsUrl = getWsUrl();
     if (wsUrl) {
       let retryCount = 0;
-      const MAX_RETRIES = 10;
+      const MAX_RETRIES = 2;
 
       const connectWs = () => {
         if (!isSubscribed) return;
