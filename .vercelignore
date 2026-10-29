@@ -1,0 +1,11 @@
+.repo-cache
+node_modules
+.git
+.husky
+.next
+dist
+build
+coverage
+*.tsbuildinfo
+.agent
+.project
