@@ -11,7 +11,9 @@ allowBuilds:
 
 audit:
   level: high
-
+overrides:
+  "undici@>=7.0.0 <7.30.1": ">=7.30.1"
+  "systeminformation@<5.33.16": ">=5.33.16"
 minimumReleaseAgeExclude:
   - source-map-js@1.2.2
   - sharp@0.35.5
