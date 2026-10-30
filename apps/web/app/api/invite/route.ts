@@ -105,8 +105,8 @@ ${leadEmail}`;
 
     // Permanently configured SMTP credentials (Gmail App Password)
     const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
-    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || "affannadeem08@gmail.com").trim();
-    const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "dqtojytcfbfdtgyz";
+    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || "").trim();
+    const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "";
     const smtpPass = rawPass.replace(/\s+/g, ""); // Clean 16-character Google App Password
 
     if (smtpUser && smtpPass) {
@@ -131,9 +131,6 @@ ${leadEmail}`;
             auth: {
               user: smtpUser,
               pass: smtpPass
-            },
-            tls: {
-              rejectUnauthorized: false
             }
           });
         }
