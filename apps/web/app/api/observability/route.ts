@@ -9,26 +9,36 @@ const NO_CACHE_HEADERS = {
   Expires: "0"
 };
 
-type ServiceProbeResult = {
+type ServiceProbeResult<T = unknown> = {
   status: number;
   ok: boolean;
   latencyMs: number;
+  data?: T | undefined;
 };
 
 // Internal endpoint probe to measure real HTTP status and real latency (in milliseconds)
-const probeEndpoint = async (url: string): Promise<ServiceProbeResult> => {
+// const start = performance.now() is defined immediately before fetch
+const probeEndpoint = async <T = unknown>(url: string): Promise<ServiceProbeResult<T>> => {
   const start = performance.now();
   try {
     const res = await fetch(url, {
       method: "GET",
       headers: { "Cache-Control": "no-cache" },
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000)
     });
     const latencyMs = Number((performance.now() - start).toFixed(2));
+    let data: T | undefined = undefined;
+    try {
+      data = (await res.json()) as T;
+    } catch {
+      // Body may not be JSON or may be empty
+    }
     return {
       status: res.status,
       ok: res.ok,
-      latencyMs
+      latencyMs,
+      data
     };
   } catch {
     const latencyMs = Number((performance.now() - start).toFixed(2));
@@ -93,33 +103,33 @@ export async function GET(request: Request) {
     );
   }
 
-  // 4. Real Service Health Probing via internal requests (Rule 2: Real performance.now() latency)
-  const hostUrl = request.headers.get("host")
-    ? `${request.headers.get("x-forwarded-proto") || "http"}://${request.headers.get("host")}`
-    : "http://localhost:3000";
+  // 4. Base URL: Derived strictly from request.url without headers or hardcoded fallbacks
+  const baseUrl = new URL(request.url).origin;
 
-  const [tasksProbe, membersProbe, chatProbe, emailProbe] = await Promise.all([
-    probeEndpoint(`${hostUrl}/api/workspace-tasks?workspaceId=probe-health-check`),
-    probeEndpoint(`${hostUrl}/api/workspace-members?workspaceId=probe-health-check`),
-    probeEndpoint(`${hostUrl}/api/workspace-chat?workspaceId=probe-health-check`),
-    probeEndpoint(`${hostUrl}/api/email-config`)
-  ]);
+  // 5. Sequential loopback probes (await one after another)
+  const tasksProbe = await probeEndpoint(`${baseUrl}/api/workspace-tasks?workspaceId=probe-health-check`);
+  const membersProbe = await probeEndpoint(`${baseUrl}/api/workspace-members?workspaceId=probe-health-check`);
+  const chatProbe = await probeEndpoint(`${baseUrl}/api/workspace-chat?workspaceId=probe-health-check`);
+  const emailProbe = await probeEndpoint<{ isConfigured?: boolean }>(`${baseUrl}/api/email-config`);
 
-  // 5. Serverless Ephemeral Instance Telemetry (Rule 4: Explicitly labeled for this single container instance)
+  // 6. Serverless Ephemeral Instance Telemetry
   const mem = process.memoryUsage();
   const uptimeSec = process.uptime();
 
-  // 6. Aggregated in-memory state counts (Safe metadata only, no secrets or internal disk paths)
+  // 7. Aggregated in-memory state counts
   const globalTasks = (globalThis as unknown as { __projexaTasks?: Map<string, unknown> }).__projexaTasks;
   const globalRegistry = (globalThis as unknown as { __projexaWorkspaceRegistry?: Map<string, unknown> }).__projexaWorkspaceRegistry;
 
   const allHealthy = tasksProbe.ok && membersProbe.ok && chatProbe.ok && emailProbe.ok;
 
+  // Extract only isConfigured from emailConfig probe body
+  const emailIsConfigured = Boolean(emailProbe.data?.isConfigured);
+
   const responsePayload = {
     timestamp: new Date().toISOString(),
     status: allHealthy ? "healthy" : "degraded",
     authMode: "admin-key",
-    // Rule 4: Clearly labeled as this ephemeral serverless container instance only
+    probeMode: "sequential loopback",
     thisServerlessInstance: {
       scope: "This Ephemeral Serverless Instance (Single Container)",
       note: "Uptime and memory reflect this active container instance, not global 24/7 cluster uptime.",
@@ -130,28 +140,34 @@ export async function GET(request: Request) {
       nodeVersion: process.version,
       region: process.env.VERCEL_REGION || "local-edge"
     },
-    // Rule 2: 100% Real measured endpoint response status and latency in ms
     endpoints: {
       workspaceTasks: {
         path: "/api/workspace-tasks",
-        ...tasksProbe
+        status: tasksProbe.status,
+        ok: tasksProbe.ok,
+        latencyMs: tasksProbe.latencyMs
       },
       workspaceMembers: {
         path: "/api/workspace-members",
-        ...membersProbe
+        status: membersProbe.status,
+        ok: membersProbe.ok,
+        latencyMs: membersProbe.latencyMs
       },
       workspaceChat: {
         path: "/api/workspace-chat",
-        ...chatProbe
+        status: chatProbe.status,
+        ok: chatProbe.ok,
+        latencyMs: chatProbe.latencyMs
       },
       emailConfig: {
         path: "/api/email-config",
         status: emailProbe.status,
         ok: emailProbe.ok,
-        latencyMs: emailProbe.latencyMs
+        latencyMs: emailProbe.latencyMs,
+        configured: emailIsConfigured,
+        configStatus: emailIsConfigured ? "configured" : "not configured"
       }
     },
-    // Safe aggregated buffer counts
     activeServerCache: {
       cachedWorkspacesCount: globalRegistry?.size ?? 0,
       cachedTaskBuffersCount: globalTasks?.size ?? 0
@@ -159,4 +175,11 @@ export async function GET(request: Request) {
   };
 
   return NextResponse.json(responsePayload, { headers: NO_CACHE_HEADERS });
+}
+
+export async function POST() {
+  return NextResponse.json(
+    { error: "Method Not Allowed" },
+    { status: 405, headers: NO_CACHE_HEADERS }
+  );
 }
