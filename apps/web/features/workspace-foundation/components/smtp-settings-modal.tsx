@@ -26,9 +26,9 @@ export const SmtpSettingsModal = ({
 
   const [provider, setProvider] = useState<SmtpProviderType>("gmail");
   const [adminKey, setAdminKey] = useState("");
-  const [host, setHost] = useState("");
+  const [host, setHost] = useState("smtp.gmail.com");
   const [port, setPort] = useState(587);
-  const [user, setUser] = useState("");
+  const [user, setUser] = useState(currentUserEmail || "");
   const [pass, setPass] = useState("");
   const [from, setFrom] = useState("");
   const [secure, setSecure] = useState(false);
@@ -43,6 +43,8 @@ export const SmtpSettingsModal = ({
   useEffect(() => {
     if (!isOpen) return;
     setStatusMessage(null);
+    if (!host) setHost("smtp.gmail.com");
+    if (!user && currentUserEmail) setUser(currentUserEmail);
     fetch("/api/email-config")
       .then((res) => res.json())
       .then((data: SmtpConfig) => {
@@ -50,7 +52,7 @@ export const SmtpSettingsModal = ({
         setServerConfig(data);
       })
       .catch(() => {});
-  }, [isOpen]);
+  }, [isOpen, currentUserEmail]);
 
   if (!isOpen) return null;
 
@@ -361,6 +363,9 @@ export const SmtpSettingsModal = ({
                 {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-cyan-200/70 leading-snug">
+              For Gmail: Google requires a 16-character <strong>App Password</strong> (from Google Account &rarr; Security &rarr; 2-Step Verification &rarr; App Passwords). Standard Google account passwords are not accepted by SMTP.
+            </p>
           </div>
 
           {!isProduction && (
