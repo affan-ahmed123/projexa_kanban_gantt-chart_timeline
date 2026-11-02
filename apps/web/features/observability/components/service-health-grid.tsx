@@ -16,7 +16,6 @@ import {
   RotateCcw,
   Server,
   ShieldAlert,
-  Sliders,
   Users
 } from "lucide-react";
 import {
@@ -29,21 +28,57 @@ import type {
   TelemetryFetchResult,
   MonitoredEndpoints,
   PercentileMetrics,
-  EndpointTelemetry
+  EndpointTelemetry,
+  ObservabilityApiResponse,
+  AuditFeedState
 } from "../observability.types";
 import { AdminKeyPrompt } from "./admin-key-prompt";
-import { SmtpSettingsModal } from "@/features/workspace-foundation/components/smtp-settings-modal";
 
 const POLLING_INTERVAL_MS = 15000;
 
+const formatUptime = (seconds: number): string => {
+  if (typeof seconds !== "number" || isNaN(seconds) || seconds < 0) {
+    return "0h 0m 0s";
+  }
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return `${hours}h ${minutes}m ${secs}s`;
+};
+
+const formatTime = (date: Date): string => {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+type SuccessfulTelemetry = {
+  data: ObservabilityApiResponse;
+  percentiles: Record<keyof MonitoredEndpoints, PercentileMetrics>;
+  auditFeed: AuditFeedState;
+};
+
 export const ServiceHealthGrid = (): ReactElement => {
   const [fetchResult, setFetchResult] = useState<TelemetryFetchResult | null>(null);
+  const [lastGoodData, setLastGoodData] = useState<SuccessfulTelemetry | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
-  const [smtpModalOpen, setSmtpModalOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
 
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isTabVisibleRef = useRef<boolean>(true);
+
+  // Live timer tick for accurate >30s staleness detection
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isStale = Boolean(
+    networkError || (lastRefreshedAt && currentTime - lastRefreshedAt.getTime() > 30000)
+  );
 
   // Fetch telemetry helper
   const loadTelemetry = useCallback(async (explicitKey?: string) => {
@@ -51,8 +86,23 @@ export const ServiceHealthGrid = (): ReactElement => {
     try {
       const result = await fetchObservabilityTelemetry(explicitKey);
       setFetchResult(result);
+
       if (result.status === "success") {
+        setLastGoodData({
+          data: result.data,
+          percentiles: result.percentiles,
+          auditFeed: result.auditFeed
+        });
+        setNetworkError(null);
         setLastRefreshedAt(new Date());
+      } else if (result.status === "error") {
+        if (result.error === "Server reach nahi ho raha") {
+          setNetworkError("Server reach nahi ho raha");
+        }
+      } else if (result.status === "needs_key") {
+        setLastGoodData(null);
+        setNetworkError(null);
+        setLastRefreshedAt(null);
       }
     } finally {
       setIsRefreshing(false);
@@ -64,9 +114,8 @@ export const ServiceHealthGrid = (): ReactElement => {
     loadTelemetry();
   };
 
-  // Polling setup with tab visibility pause and needs_key stop
+  // Initial authentication check & fetch
   useEffect(() => {
-    // 1. Initial load
     const storedKey = getStoredAdminKey();
     if (storedKey) {
       loadTelemetry(storedKey);
@@ -76,47 +125,49 @@ export const ServiceHealthGrid = (): ReactElement => {
         error: "Server administrator authorization key required."
       });
     }
+  }, [loadTelemetry]);
 
-    // 2. Tab visibility tracking
+  // Polling setup: 15s interval, pause on hidden, immediate refresh on visible, stop on needs_key, clear on unmount
+  useEffect(() => {
+    if (fetchResult?.status === "needs_key") {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+      return;
+    }
+
+    const startPolling = () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+      }
+      pollingTimerRef.current = setInterval(() => {
+        if (!document.hidden) {
+          loadTelemetry();
+        }
+      }, POLLING_INTERVAL_MS);
+    };
+
     const handleVisibilityChange = () => {
-      const visible = !document.hidden;
-      isTabVisibleRef.current = visible;
-      if (visible && fetchResult?.status === "success") {
-        // Resume polling immediately with a fresh probe on tab focus
+      if (document.hidden) {
+        if (pollingTimerRef.current) {
+          clearInterval(pollingTimerRef.current);
+          pollingTimerRef.current = null;
+        }
+      } else {
         loadTelemetry();
+        startPolling();
       }
     };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    startPolling();
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (pollingTimerRef.current) {
         clearInterval(pollingTimerRef.current);
-      }
-    };
-  }, [loadTelemetry]);
-
-  // Polling interval management: Har 15 sec, tab hidden pe pause, needs_key pe band
-  useEffect(() => {
-    if (pollingTimerRef.current) {
-      clearInterval(pollingTimerRef.current);
-      pollingTimerRef.current = null;
-    }
-
-    // Polling band if needs_key or error state
-    if (fetchResult?.status !== "success") {
-      return;
-    }
-
-    pollingTimerRef.current = setInterval(() => {
-      // Tab hidden ho to pause
-      if (!isTabVisibleRef.current) return;
-      loadTelemetry();
-    }, POLLING_INTERVAL_MS);
-
-    return () => {
-      if (pollingTimerRef.current) {
-        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
       }
     };
   }, [fetchResult?.status, loadTelemetry]);
@@ -124,6 +175,9 @@ export const ServiceHealthGrid = (): ReactElement => {
   // 401 / manual sign out handler: clear key and show prompt
   const handleLockDashboard = () => {
     clearStoredAdminKey();
+    setLastGoodData(null);
+    setNetworkError(null);
+    setLastRefreshedAt(null);
     setFetchResult({
       status: "needs_key",
       error: "Session closed. Please enter your administrator key to reconnect."
@@ -141,8 +195,8 @@ export const ServiceHealthGrid = (): ReactElement => {
     );
   }
 
-  // Error state (e.g. 503 or server offline)
-  if (fetchResult.status === "error") {
+  // Error state without any previous good data (e.g. 503 or initial offline)
+  if (fetchResult.status === "error" && !lastGoodData) {
     return (
       <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4">
         <div className="rounded-2xl border border-rose-300 bg-rose-50 p-6 text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200 space-y-3">
@@ -175,31 +229,37 @@ export const ServiceHealthGrid = (): ReactElement => {
     );
   }
 
-  const { data, percentiles, auditFeed } = fetchResult;
+  const activeTelemetry = lastGoodData ?? (fetchResult.status === "success" ? fetchResult : null);
+  if (!activeTelemetry) {
+    return <></>;
+  }
 
-  // Render percentile metric helper with strict "collecting" state
-  const renderPercentile = (metric: number | "collecting", label: string) => {
-    if (metric === "collecting") {
-      return (
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-            {label}
-          </span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-            <Clock className="size-3" />
-            <span>Collecting…</span>
+  const { data, percentiles, auditFeed } = activeTelemetry;
+
+  // Render percentile metric helper with threshold indication and sample count
+  const renderPercentile = (metric: number | string, label: string, sampleCount: number) => {
+    const isCollecting = typeof metric === "string";
+
+    return (
+      <div className="flex flex-col justify-between rounded-xl border border-slate-100 bg-white p-2.5 dark:border-[#20314a] dark:bg-[#111b2b]">
+        <div className="flex items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span>{label}</span>
+          <span className="font-mono lowercase text-slate-500 dark:text-slate-400">
+            n={sampleCount}
           </span>
         </div>
-      );
-    }
-    return (
-      <div className="flex flex-col">
-        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-          {label}
-        </span>
-        <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
-          {metric} ms
-        </span>
+        <div className="mt-1">
+          {isCollecting ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <Clock className="size-3 shrink-0" />
+              <span>{metric}</span>
+            </span>
+          ) : (
+            <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
+              {metric} ms
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -209,7 +269,7 @@ export const ServiceHealthGrid = (): ReactElement => {
     name: string;
     path: string;
     icon: typeof Server;
-    telemetry: EndpointTelemetry & { configured?: boolean; configStatus?: string };
+    telemetry: EndpointTelemetry;
     pct: PercentileMetrics;
   }> = [
     {
@@ -241,13 +301,26 @@ export const ServiceHealthGrid = (): ReactElement => {
       name: "SMTP Email Dispatch Service",
       path: data.endpoints.emailConfig.path,
       icon: Mail,
-      telemetry: data.endpoints.emailConfig as EndpointTelemetry & { configured?: boolean; configStatus?: string },
+      telemetry: data.endpoints.emailConfig,
       pct: percentiles.emailConfig
     }
   ];
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
+      {/* Network Error Stale Alert Banner */}
+      {networkError && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>{networkError} — Showing last good data</span>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+            Stale
+          </span>
+        </div>
+      )}
+
       {/* Top Header & Status Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-[#20314a] dark:bg-[#121c2d] text-slate-900 dark:text-white">
         <div className="space-y-1">
@@ -264,7 +337,20 @@ export const ServiceHealthGrid = (): ReactElement => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-auto">
+          {lastRefreshedAt && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 dark:border-[#20314a] dark:bg-[#152336] dark:text-slate-300">
+              <Clock className="size-3.5 text-slate-400" />
+              <span className="text-[11px] font-medium">Last updated: {formatTime(lastRefreshedAt)}</span>
+              {isStale && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
+                  <AlertTriangle className="size-2.5" />
+                  <span>Stale</span>
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 dark:border-[#20314a] dark:bg-[#152336] dark:text-slate-300">
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[11px] font-medium">Live polling (15s)</span>
@@ -301,48 +387,20 @@ export const ServiceHealthGrid = (): ReactElement => {
         </div>
       </div>
 
-      {/* Main 4 Endpoints Service Health Grid */}
+      {/* Main 4 Endpoints Service Health Grid (1 Column on Mobile) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {endpointList.map((ep) => {
           const Icon = ep.icon;
           const isEmail = ep.key === "emailConfig";
           const isOk = ep.telemetry.ok;
-          const isConfigured = ep.telemetry.configured ?? true;
-
-          // Distinct status badge evaluation
-          let statusBadge: ReactElement;
-          if (!isOk) {
-            // Down state
-            statusBadge = (
-              <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400">
-                <AlertTriangle className="size-3" />
-                <span>Down / Unreachable</span>
-              </span>
-            );
-          } else if (isEmail && !isConfigured) {
-            // Distinct "not configured" state for emailConfig (distinct from down)
-            statusBadge = (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
-                <AlertTriangle className="size-3" />
-                <span>Not Configured</span>
-              </span>
-            );
-          } else {
-            // Operational state
-            statusBadge = (
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400">
-                <CheckCircle2 className="size-3" />
-                <span>Operational (HTTP {ep.telemetry.status})</span>
-              </span>
-            );
-          }
+          const isConfigured = Boolean(ep.telemetry.configured);
 
           return (
             <div
               key={ep.key}
               className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-[#20314a] dark:bg-[#121c2d] text-slate-900 dark:text-white space-y-4"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="flex size-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-[#1a2940] dark:text-slate-300 border border-slate-200 dark:border-[#253957] shrink-0 font-bold">
                     <Icon className="size-4.5" />
@@ -356,19 +414,47 @@ export const ServiceHealthGrid = (): ReactElement => {
                     </code>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  {isEmail && (
-                    <button
-                      onClick={() => setSmtpModalOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-[#2b3e5e] dark:bg-[#152336] dark:text-slate-300 transition-colors cursor-pointer"
-                      title="Open SMTP Settings Modal"
-                      type="button"
-                    >
-                      <Sliders className="size-2.5" />
-                      <span>Configure</span>
-                    </button>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {isEmail ? (
+                    <>
+                      {isOk ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400">
+                          <CheckCircle2 className="size-3 shrink-0" />
+                          <span>Config endpoint reachable</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400">
+                          <AlertTriangle className="size-3 shrink-0" />
+                          <span>Config endpoint unreachable</span>
+                        </span>
+                      )}
+
+                      {isConfigured ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400">
+                          <CheckCircle2 className="size-3 shrink-0" />
+                          <span>SMTP configured</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
+                          <AlertTriangle className="size-3 shrink-0" />
+                          <span>SMTP not configured</span>
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    isOk ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3 shrink-0" />
+                        <span>Operational (HTTP {ep.telemetry.status})</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400">
+                        <AlertTriangle className="size-3 shrink-0" />
+                        <span>Down / Unreachable</span>
+                      </span>
+                    )
                   )}
-                  {statusBadge}
                 </div>
               </div>
 
@@ -385,18 +471,24 @@ export const ServiceHealthGrid = (): ReactElement => {
                 </div>
               </div>
 
-              {/* Percentiles from service.ts with collecting indicator */}
+              {/* SMTP Card Note */}
+              {isEmail && (
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 dark:border-[#1a2940] dark:bg-[#152336]/60">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                    Ye sirf configuration check hai, email delivery ka test nahi.
+                  </p>
+                </div>
+              )}
+
+              {/* Percentiles with threshold checking and sample count */}
               <div className="border-t border-slate-100 pt-3 dark:border-[#1a2940] space-y-2">
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                   <span className="font-semibold">Rolling Percentiles</span>
-                  <span className="font-mono text-[10px]">
-                    {ep.pct.sampleCount} / 5+ samples
-                  </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-white p-2.5 dark:border-[#20314a] dark:bg-[#111b2b]">
-                  {renderPercentile(ep.pct.p50, "p50")}
-                  {renderPercentile(ep.pct.p95, "p95")}
-                  {renderPercentile(ep.pct.p99, "p99")}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {renderPercentile(ep.pct.p50, "p50", ep.pct.sampleCount)}
+                  {renderPercentile(ep.pct.p95, "p95", ep.pct.sampleCount)}
+                  {renderPercentile(ep.pct.p99, "p99", ep.pct.sampleCount)}
                 </div>
               </div>
             </div>
@@ -404,7 +496,7 @@ export const ServiceHealthGrid = (): ReactElement => {
         })}
       </div>
 
-      {/* Ephemeral Container Instance & Active Cache Telemetry */}
+      {/* Ephemeral Container Instance & Active Cache Telemetry (1 Column on Mobile) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Serverless Instance Telemetry */}
         <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-[#20314a] dark:bg-[#121c2d] text-slate-900 dark:text-white space-y-3">
@@ -417,11 +509,11 @@ export const ServiceHealthGrid = (): ReactElement => {
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {data.thisServerlessInstance.note}
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
             <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-[#1a2940] dark:bg-[#152336]">
               <span className="block text-[10px] text-slate-400 font-bold uppercase">Uptime</span>
               <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
-                {data.thisServerlessInstance.uptimeSeconds}s
+                {formatUptime(data.thisServerlessInstance.uptimeSeconds)}
               </span>
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-[#1a2940] dark:bg-[#152336]">
@@ -445,12 +537,12 @@ export const ServiceHealthGrid = (): ReactElement => {
           </div>
         </div>
 
-        {/* In-Memory Cache Buffers */}
+        {/* Cache Card Title: "In-memory workspaces on this instance" */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-[#20314a] dark:bg-[#121c2d] text-slate-900 dark:text-white space-y-3">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-[#1a2940]">
             <Database className="size-4 text-emerald-600 dark:text-emerald-400" />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Active Server In-Memory Cache
+              In-memory workspaces on this instance
             </span>
           </div>
           <div className="space-y-2">
@@ -495,18 +587,20 @@ export const ServiceHealthGrid = (): ReactElement => {
       </div>
 
       {/* Footer info */}
-      <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 px-1">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400 dark:text-slate-500 px-1">
         <span>Probe Mode: {(data as { probeMode?: string }).probeMode || "sequential loopback"}</span>
         {lastRefreshedAt && (
-          <span>Last probed: {lastRefreshedAt.toLocaleTimeString()}</span>
+          <div className="flex items-center gap-2">
+            <span>Last updated: {formatTime(lastRefreshedAt)}</span>
+            {isStale && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
+                <AlertTriangle className="size-2.5" />
+                <span>Stale</span>
+              </span>
+            )}
+          </div>
         )}
       </div>
-
-      <SmtpSettingsModal
-        isOpen={smtpModalOpen}
-        onClose={() => setSmtpModalOpen(false)}
-        onConfigSaved={() => loadTelemetry()}
-      />
     </div>
   );
 };

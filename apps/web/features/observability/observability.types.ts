@@ -5,6 +5,8 @@ export type EndpointTelemetry = {
   status: number;
   ok: boolean;
   latencyMs: number;
+  configured?: boolean;
+  configStatus?: string;
 };
 
 export type ServerlessInstanceTelemetry = {
@@ -39,9 +41,9 @@ export type ObservabilityApiResponse = {
 
 export type PercentileMetrics = {
   sampleCount: number;
-  p50: number | "collecting";
-  p95: number | "collecting";
-  p99: number | "collecting";
+  p50: number | string;
+  p95: number | string;
+  p99: number | string;
 };
 
 export type AuditFeedState = {

@@ -20,8 +20,7 @@ const latencySamples: Record<keyof MonitoredEndpoints, number[]> = {
   emailConfig: []
 };
 
-const MAX_SAMPLES_BUFFER = 50;
-const MIN_SAMPLES_FOR_PERCENTILES = 5;
+const MAX_SAMPLES_BUFFER = 100;
 
 export const getStoredAdminKey = (): string | null => {
   if (memoryAdminKey) return memoryAdminKey;
@@ -57,18 +56,9 @@ export const clearStoredAdminKey = (): void => {
 };
 
 // Calculate percentiles from real collected samples
-// Rule: p50/p95/p99 calculated ONLY when sampleCount >= 5, otherwise "collecting"
+// Rule: p50 >= 5 samples, p95 >= 20 samples, p99 >= 100 samples
 const calculatePercentiles = (samples: number[]): PercentileMetrics => {
   const count = samples.length;
-  if (count < MIN_SAMPLES_FOR_PERCENTILES) {
-    return {
-      sampleCount: count,
-      p50: "collecting",
-      p95: "collecting",
-      p99: "collecting"
-    };
-  }
-
   const sorted = [...samples].sort((a, b) => a - b);
 
   const getNearestRank = (pct: number): number => {
@@ -79,9 +69,9 @@ const calculatePercentiles = (samples: number[]): PercentileMetrics => {
 
   return {
     sampleCount: count,
-    p50: getNearestRank(50),
-    p95: getNearestRank(95),
-    p99: getNearestRank(99)
+    p50: count < 5 ? `Collecting ${count}/5` : getNearestRank(50),
+    p95: count < 20 ? `Collecting ${count}/20` : getNearestRank(95),
+    p99: count < 100 ? `Collecting ${count}/100` : getNearestRank(99)
   };
 };
 
@@ -142,7 +132,7 @@ export const fetchObservabilityTelemetry = async (
       return {
         status: "error",
         statusCode: 503,
-        error: "Observability service is disabled. Server administrator must set OBSERVABILITY_ADMIN_KEY in environment variables."
+        error: "OBSERVABILITY_ADMIN_KEY server par set nahi hai."
       };
     }
 
@@ -150,7 +140,7 @@ export const fetchObservabilityTelemetry = async (
       return {
         status: "error",
         statusCode: res.status,
-        error: `Telemetry fetch failed with HTTP status ${res.status} (${res.statusText || "Error"})`
+        error: `Telemetry fetch failed with HTTP status ${res.status}`
       };
     }
 
@@ -182,26 +172,22 @@ export const fetchObservabilityTelemetry = async (
       percentiles,
       auditFeed: getAuditFeedState()
     };
-  } catch (err) {
+  } catch {
     return {
       status: "error",
-      error: err instanceof Error ? err.message : "Network error communicating with observability API"
+      error: "Server reach nahi ho raha"
     };
   }
 };
 
 // Safe Cache Purge Utility:
-// Rule 5: Purges ONLY observability telemetry and sample buffers.
-// NEVER clears user workspace data, board tasks, or current session in localStorage!
+// Rule 1: Reset Samples sirf samples clear kare, admin key nahi.
 export const purgeObservabilityCache = (): { success: boolean; clearedSamplesCount: number } => {
   let totalCleared = 0;
   for (const key of Object.keys(latencySamples) as Array<keyof MonitoredEndpoints>) {
     totalCleared += latencySamples[key].length;
     latencySamples[key] = [];
   }
-
-  // Clear session storage key if desired
-  clearStoredAdminKey();
 
   return {
     success: true,
