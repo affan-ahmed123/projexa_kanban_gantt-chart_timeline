@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { randomInt } from "crypto";
 import { saveVerificationCode } from "../verification-store";
 
 // Rate limiting in-memory store
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
     emailRateLimit.set(cleanEmail, now);
 
     // Generate 6-digit numeric verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCode = randomInt(100000, 1000000).toString();
 
     // Store with 10 minutes expiration
     saveVerificationCode(cleanEmail, verificationCode, cleanName, 10);
