@@ -2,13 +2,85 @@ import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { saveVerificationCode } from "../verification-store";
 
+// Rate limiting in-memory store
+const globalRateLimit = globalThis as unknown as {
+  __emailRateLimit?: Map<string, number>;
+  __ipRateLimit?: Map<string, number[]>;
+};
+
+if (!globalRateLimit.__emailRateLimit) {
+  globalRateLimit.__emailRateLimit = new Map<string, number>();
+}
+if (!globalRateLimit.__ipRateLimit) {
+  globalRateLimit.__ipRateLimit = new Map<string, number[]>();
+}
+
+const emailRateLimit = globalRateLimit.__emailRateLimit;
+const ipRateLimit = globalRateLimit.__ipRateLimit;
+
+const getClientIp = (request: Request): string => {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const firstIp = forwarded.split(",")[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
+  const cfIp = request.headers.get("cf-connecting-ip");
+  if (cfIp) return cfIp.trim();
+  return "127.0.0.1";
+};
+
+const escapeHtml = (str: string): string => {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+};
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, name = "New User" } = body;
+    const now = Date.now();
+    const clientIp = getClientIp(request);
+    const oneHourAgo = now - 60 * 60 * 1000;
+
+    // Rate limit: Max 10 requests per hour per IP
+    const ipTimestamps = (ipRateLimit.get(clientIp) || []).filter((ts) => ts > oneHourAgo);
+    if (ipTimestamps.length >= 10) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many requests from this IP. Please try again later.",
+          message: "Too many requests from this IP. Please try again later."
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": "3600" }
+        }
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
+
+    const { email, name = "User", purpose = "verification" } = (body || {}) as {
+      email?: unknown;
+      name?: unknown;
+      purpose?: unknown;
+    };
+    const isReset = purpose === "reset_password";
 
     const cleanEmail = String(email || "").trim().toLowerCase();
-    const cleanName = String(name || "Developer").trim();
+    const cleanName = String(name || "User").trim();
 
     if (!cleanEmail || !cleanEmail.includes("@")) {
       return NextResponse.json(
@@ -17,28 +89,60 @@ export async function POST(request: Request) {
       );
     }
 
+    // Rate limit: Max 1 request per 60 seconds per email
+    const lastEmailTime = emailRateLimit.get(cleanEmail);
+    if (lastEmailTime && now - lastEmailTime < 60 * 1000) {
+      const retryAfter = Math.ceil((60 * 1000 - (now - lastEmailTime)) / 1000);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many requests. Please wait 60 seconds before requesting another code.",
+          message: "Too many requests. Please wait 60 seconds before requesting another code."
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfter) }
+        }
+      );
+    }
+
+    // Record timestamps for rate limiting
+    ipTimestamps.push(now);
+    ipRateLimit.set(clientIp, ipTimestamps);
+    emailRateLimit.set(cleanEmail, now);
+
     // Generate 6-digit numeric verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store with 10 minutes expiration
     saveVerificationCode(cleanEmail, verificationCode, cleanName, 10);
 
-    // Read SMTP configurations (Defaults to Gmail App Password)
-    const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
-    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || "").trim();
-    const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "";
-    const smtpPass = rawPass.replace(/\s+/g, "");
+    // Read SMTP configurations strictly from environment variables without hardcoded fallback credentials
+    const smtpHost = process.env.SMTP_HOST?.trim();
+    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
+    const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+    const smtpPass = rawPass ? rawPass.replace(/\s+/g, "") : undefined;
     const port = Number(process.env.SMTP_PORT || 587);
     const secure = process.env.SMTP_SECURE === "true" || port === 465;
+    const smtpFrom = process.env.SMTP_FROM?.trim();
 
     let emailSent = false;
-    let deliveryError: string | null = null;
     let messageId: string | null = null;
 
     if (smtpUser && smtpPass) {
       try {
         let transporter: ReturnType<typeof nodemailer.createTransport>;
-        if (smtpHost === "smtp.gmail.com" || (!smtpHost && smtpUser.endsWith("@gmail.com"))) {
+        if (smtpHost) {
+          transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port,
+            secure,
+            auth: {
+              user: smtpUser,
+              pass: smtpPass
+            }
+          });
+        } else if (smtpUser.endsWith("@gmail.com")) {
           transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
@@ -47,27 +151,18 @@ export async function POST(request: Request) {
             }
           });
         } else {
-          transporter = nodemailer.createTransport({
-            host: smtpHost || "smtp.gmail.com",
-            port,
-            secure,
-            auth: {
-              user: smtpUser,
-              pass: smtpPass
-            }
-          });
+          throw new Error("SMTP host configuration missing");
         }
 
-        const subject = `Your Projexa Verification Code: ${verificationCode}`;
+        const subject = isReset
+          ? `Your Projexa Password Reset Code: ${verificationCode}`
+          : `Your Projexa Verification Code: ${verificationCode}`;
 
-        const textContent = `Hello ${cleanName},
+        const textContent = isReset
+          ? `Hello ${cleanName},\n\nYour 6-digit password reset code for Projexa is: ${verificationCode}\n\nThis code will expire in 10 minutes. If you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nProjexa Workspaces Team`
+          : `Hello ${cleanName},\n\nYour 6-digit verification code for Projexa is: ${verificationCode}\n\nThis code will expire in 10 minutes. If you did not request this verification, please ignore this email.\n\nBest regards,\nProjexa Workspaces Team`;
 
-Your 6-digit verification code for Projexa is: ${verificationCode}
-
-This code will expire in 10 minutes. If you did not request this verification, please ignore this email.
-
-Best regards,
-Projexa Workspaces Team`;
+        const escapedName = escapeHtml(cleanName);
 
         const htmlContent = `
 <!DOCTYPE html>
@@ -102,7 +197,7 @@ Projexa Workspaces Team`;
                 </tr>
               </table>
               <div style="margin-top: 15px; display: inline-block; padding: 4px 12px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 20px;">
-                <span style="font-size: 11px; font-weight: 700; color: #22d3ee; text-transform: uppercase; letter-spacing: 1px;">Email Verification Code</span>
+                <span style="font-size: 11px; font-weight: 700; color: #22d3ee; text-transform: uppercase; letter-spacing: 1px;">${isReset ? "Password Reset Code" : "Email Verification Code"}</span>
               </div>
             </td>
           </tr>
@@ -111,10 +206,10 @@ Projexa Workspaces Team`;
           <tr>
             <td style="padding: 10px 35px 25px 35px; text-align: center;">
               <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">
-                Confirm Your Email Address
+                ${isReset ? "Reset Your Account Password" : "Confirm Your Email Address"}
               </h1>
               <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 22px; color: #94a3b8;">
-                Hi <strong style="color: #e2e8f0;">${cleanName}</strong>, thank you for joining Projexa. Please enter the verification code below to verify your account:
+                ${isReset ? `Hi <strong style="color: #e2e8f0;">${escapedName}</strong>, we received a request to reset your Projexa account password. Please enter the verification code below to set a new password:` : `Hi <strong style="color: #e2e8f0;">${escapedName}</strong>, thank you for joining Projexa. Please enter the verification code below to verify your account:`}
               </p>
 
               <!-- Verification Code Display Box -->
@@ -155,8 +250,9 @@ Projexa Workspaces Team`;
 </body>
 </html>`;
 
+        const fromAddress = smtpFrom || (smtpUser ? `"Projexa Workspaces" <${smtpUser}>` : undefined);
         const info = await transporter.sendMail({
-          from: process.env.SMTP_FROM || `"Projexa Workspaces" <${smtpUser}>`,
+          from: fromAddress,
           to: cleanEmail,
           subject,
           text: textContent,
@@ -165,30 +261,34 @@ Projexa Workspaces Team`;
 
         emailSent = true;
         messageId = info.messageId;
-        console.info(`[Projexa Auth] 📬 Verification code ${verificationCode} delivered to ${cleanEmail}: ${info.messageId}`);
       } catch (err) {
-        deliveryError = err instanceof Error ? err.message : "SMTP transmission failed";
-        console.error("[Projexa Auth] ❌ Verification email dispatch failed:", deliveryError);
+        console.error(err instanceof Error ? err.message : String(err));
       }
-    } else {
-      console.warn(`[Projexa Auth] ⚠️ SMTP credentials not found. Verification code for ${cleanEmail}: ${verificationCode}`);
+    }
+
+    const isDev = process.env.NODE_ENV === "development";
+
+    if (!emailSent) {
+      return NextResponse.json({
+        success: false,
+        emailSent: false,
+        message: "Email send nahi ho saki, dobara try karo",
+        error: "Email send nahi ho saki, dobara try karo",
+        ...(isDev ? { debugCode: verificationCode } : {})
+      });
     }
 
     return NextResponse.json({
       success: true,
-      emailSent,
-      deliveryError,
-      messageId,
-      message: emailSent
-        ? `Verification code sent to ${cleanEmail}`
-        : `Verification code generated for ${cleanEmail}. (Code logged in console)`,
-      debugCode: process.env.NODE_ENV !== "production" ? verificationCode : undefined
+      emailSent: true,
+      message: `Verification code sent to ${cleanEmail}`,
+      ...(messageId ? { messageId } : {}),
+      ...(isDev ? { debugCode: verificationCode } : {})
     });
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Failed to process verification request";
-    console.error("[Projexa Auth] Send verification error:", errorMsg);
+    console.error(err instanceof Error ? err.message : String(err));
     return NextResponse.json(
-      { success: false, error: errorMsg },
+      { success: false, error: "Failed to process verification request" },
       { status: 500 }
     );
   }
