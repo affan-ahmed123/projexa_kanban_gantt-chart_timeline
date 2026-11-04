@@ -22,6 +22,7 @@ export type Workspace = {
     gender?: "neutral" | "male" | "female";
   };
   members: WorkspaceMember[];
+  deletedMemberEmails?: string[] | undefined;
   createdAt: string;
 };
 
@@ -241,24 +242,33 @@ export const deleteWorkspace = (workspaceId: string): Workspace | null => {
 
 export const mergeWorkspaceMembers = (
   existing: readonly WorkspaceMember[],
-  incoming: readonly WorkspaceMember[]
+  incoming: readonly WorkspaceMember[],
+  deletedEmails?: readonly string[]
 ): WorkspaceMember[] => {
+  const deletedSet = new Set((deletedEmails || []).map((e) => e.toLowerCase().trim()));
   const map = new Map<string, WorkspaceMember>();
   for (const m of existing) {
-    if (isRealMember(m)) map.set(m.email.toLowerCase().trim(), m);
+    if (isRealMember(m)) {
+      const key = m.email.toLowerCase().trim();
+      if (!deletedSet.has(key)) {
+        map.set(key, m);
+      }
+    }
   }
   for (const m of incoming) {
     if (isRealMember(m)) {
       const key = m.email.toLowerCase().trim();
-      const current = map.get(key);
-      const cleanName = m.name?.replace(/::(male|female)$/, "") || current?.name || key.split("@")[0] || "Team Member";
-      map.set(key, {
-        id: m.id || current?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: cleanName,
-        email: key,
-        role: m.role || current?.role || "Developer",
-        gender: m.gender || current?.gender || "neutral"
-      });
+      if (!deletedSet.has(key)) {
+        const current = map.get(key);
+        const cleanName = m.name?.replace(/::(male|female)$/, "") || current?.name || key.split("@")[0] || "Team Member";
+        map.set(key, {
+          id: m.id || current?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: cleanName,
+          email: key,
+          role: m.role || current?.role || "Developer",
+          gender: m.gender || current?.gender || "neutral"
+        });
+      }
     }
   }
   return Array.from(map.values());
@@ -284,6 +294,8 @@ export const syncWorkspaceMembersToServer = async (
         creatorEmail: targetWs?.creatorEmail,
         teamLead: targetWs?.teamLead,
         members,
+        deletedMemberEmails: targetWs?.deletedMemberEmails || [],
+        replaceMembers: true,
         sender: targetWs?.teamLead?.name || "Member Directory"
       })
     });
@@ -301,22 +313,56 @@ export const syncWorkspaceMembersWithServer = async (workspaceId: string): Promi
     const data = await res.json();
     if (!data || !Array.isArray(data.members)) return [];
 
-    const remoteMembers: WorkspaceMember[] = data.members;
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
-    if (!target) return remoteMembers;
+    if (!target) return data.members;
 
-    const merged = mergeWorkspaceMembers(target.members || [], remoteMembers);
-    const hasDiff = merged.length !== target.members.length ||
-      merged.some((m, idx) => target.members[idx]?.email?.toLowerCase() !== m.email.toLowerCase());
+    const combinedDeleted = Array.from(
+      new Set([
+        ...(target.deletedMemberEmails || []).map((e) => e.toLowerCase().trim()),
+        ...(Array.isArray(data.deletedMemberEmails) ? data.deletedMemberEmails : []).map((e: string) => e.toLowerCase().trim())
+      ])
+    );
+
+    const remoteMembers: WorkspaceMember[] = data.members.filter(
+      (m: WorkspaceMember) => isRealMember(m) && !combinedDeleted.includes(m.email.toLowerCase().trim())
+    );
+
+    // Merge remote members and local members while strictly excluding any deleted members
+    const map = new Map<string, WorkspaceMember>();
+    for (const m of remoteMembers) {
+      map.set(m.email.toLowerCase().trim(), m);
+    }
+    for (const m of target.members || []) {
+      if (isRealMember(m)) {
+        const key = m.email.toLowerCase().trim();
+        if (!combinedDeleted.includes(key) && !map.has(key)) {
+          map.set(key, m);
+        }
+      }
+    }
+
+    const finalized = Array.from(map.values());
+    const hasDiff =
+      finalized.length !== (target.members || []).length ||
+      finalized.some((m, idx) => target.members[idx]?.email?.toLowerCase() !== m.email.toLowerCase()) ||
+      combinedDeleted.length !== (target.deletedMemberEmails || []).length;
 
     if (hasDiff) {
-      const updated: Workspace = { ...target, members: merged };
+      const updated: Workspace = {
+        ...target,
+        members: finalized,
+        deletedMemberEmails: combinedDeleted
+      };
       saveActiveWorkspace(updated);
-      window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: merged } }));
+      window.dispatchEvent(
+        new CustomEvent("projexa_workspace_members_change", {
+          detail: { workspaceId, members: finalized, deletedMemberEmails: combinedDeleted }
+        })
+      );
       window.dispatchEvent(new Event("projexa_session_change"));
     }
-    return merged;
+    return finalized;
   } catch {
     return [];
   }
@@ -347,8 +393,8 @@ export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMembe
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return null;
-    const cleanEmail = member.email.toLowerCase();
-    const existingIndex = target.members.findIndex((m) => m.email.toLowerCase() === cleanEmail);
+    const cleanEmail = member.email.toLowerCase().trim();
+    const existingIndex = target.members.findIndex((m) => m.email.toLowerCase().trim() === cleanEmail);
     let updatedMembers: WorkspaceMember[];
     if (existingIndex >= 0) {
       updatedMembers = [...target.members];
@@ -356,10 +402,22 @@ export const addMemberToWorkspace = (workspaceId: string, member: WorkspaceMembe
     } else {
       updatedMembers = [...target.members, member];
     }
-    const updated: Workspace = { ...target, members: updatedMembers };
+    // If this member was previously marked as deleted, un-delete them since they are re-added
+    const updatedDeleted = (target.deletedMemberEmails || []).filter(
+      (e) => e.toLowerCase().trim() !== cleanEmail
+    );
+    const updated: Workspace = {
+      ...target,
+      members: updatedMembers,
+      deletedMemberEmails: updatedDeleted
+    };
     saveActiveWorkspace(updated);
     void syncWorkspaceMembersToServer(workspaceId, updatedMembers, updated);
-    window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: updatedMembers } }));
+    window.dispatchEvent(
+      new CustomEvent("projexa_workspace_members_change", {
+        detail: { workspaceId, members: updatedMembers, deletedMemberEmails: updatedDeleted }
+      })
+    );
     window.dispatchEvent(new Event("projexa_session_change"));
     return updated;
   } catch (e) {
@@ -374,15 +432,35 @@ export const removeMemberFromWorkspace = (workspaceId: string, memberIdOrEmail: 
     const all = getAllWorkspaces();
     const target = all.find((w) => w.id === workspaceId);
     if (!target) return null;
-    const cleanParam = memberIdOrEmail.toLowerCase();
-    const updatedMembers = target.members.filter((m) => m.id !== memberIdOrEmail && m.email.toLowerCase() !== cleanParam);
+    const cleanParam = memberIdOrEmail.toLowerCase().trim();
+    const memberToRemove = target.members.find(
+      (m) => m.id === memberIdOrEmail || m.email.toLowerCase().trim() === cleanParam
+    );
+    const removedEmail = memberToRemove?.email.toLowerCase().trim() || (cleanParam.includes("@") ? cleanParam : "");
+
+    const updatedMembers = target.members.filter(
+      (m) => m.id !== memberIdOrEmail && m.email.toLowerCase().trim() !== cleanParam
+    );
+
+    const updatedDeleted = Array.from(
+      new Set([
+        ...(target.deletedMemberEmails || []).map((e) => e.toLowerCase().trim()),
+        ...(removedEmail ? [removedEmail] : [])
+      ])
+    );
+
     const updated: Workspace = {
       ...target,
-      members: updatedMembers
+      members: updatedMembers,
+      deletedMemberEmails: updatedDeleted
     };
     saveActiveWorkspace(updated);
     void syncWorkspaceMembersToServer(workspaceId, updatedMembers, updated);
-    window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: updatedMembers } }));
+    window.dispatchEvent(
+      new CustomEvent("projexa_workspace_members_change", {
+        detail: { workspaceId, members: updatedMembers, deletedMemberEmails: updatedDeleted, removedEmail }
+      })
+    );
     window.dispatchEvent(new Event("projexa_session_change"));
     return updated;
   } catch (e) {

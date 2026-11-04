@@ -8,6 +8,7 @@ import {
   getAllWorkspaces,
   saveActiveWorkspace,
   mergeWorkspaceMembers,
+  isRealMember,
   type WorkspaceMember,
   type Workspace
 } from "../storage/workspace-storage";
@@ -167,12 +168,17 @@ export const useWorkspaceSocket = ({
       const user = currentUserRef.current;
       const senderName = user?.name || user?.email || "Team Lead";
 
+      const all = getAllWorkspaces();
+      const targetWs = all.find((w) => w.id === workspaceId);
+      const deletedEmails = targetWs?.deletedMemberEmails || [];
+
       if (channelRef.current) {
         try {
           channelRef.current.postMessage({
             type: "members_updated",
             workspaceId,
             members,
+            deletedMemberEmails: deletedEmails,
             sender: senderName,
             timestamp: Date.now()
           });
@@ -186,6 +192,7 @@ export const useWorkspaceSocket = ({
               type: "members_update",
               workspaceId,
               members,
+              deletedMemberEmails: deletedEmails,
               user: user ? { name: user.name, email: user.email, role: user.role } : undefined
             })
           );
@@ -198,6 +205,8 @@ export const useWorkspaceSocket = ({
         body: JSON.stringify({
           workspaceId,
           members,
+          deletedMemberEmails: deletedEmails,
+          replaceMembers: true,
           sender: senderName
         })
       }).catch(() => {});
@@ -211,19 +220,59 @@ export const useWorkspaceSocket = ({
     let isSubscribed = true;
 
     // Helper to safely apply remote members to local storage & trigger UI refresh
-    const applyRemoteMembers = (incoming: readonly WorkspaceMember[], senderName?: string) => {
-      if (!Array.isArray(incoming) || incoming.length === 0) return;
+    const applyRemoteMembers = (
+      incoming: readonly WorkspaceMember[],
+      senderName?: string,
+      remoteDeleted?: readonly string[]
+    ) => {
+      if (!Array.isArray(incoming)) return;
       const all = getAllWorkspaces();
       const target = all.find((w) => w.id === workspaceId);
       if (!target) return;
-      const merged = mergeWorkspaceMembers(target.members || [], incoming);
-      const isChanged = merged.length !== (target.members || []).length ||
-        merged.some((m, idx) => target.members[idx]?.email?.toLowerCase() !== m.email.toLowerCase());
+
+      const combinedDeleted = Array.from(
+        new Set([
+          ...(target.deletedMemberEmails || []).map((e) => e.toLowerCase().trim()),
+          ...(remoteDeleted || []).map((e) => e.toLowerCase().trim())
+        ])
+      );
+
+      const map = new Map<string, WorkspaceMember>();
+      for (const m of incoming) {
+        if (isRealMember(m)) {
+          const key = m.email.toLowerCase().trim();
+          if (!combinedDeleted.includes(key)) {
+            map.set(key, m);
+          }
+        }
+      }
+      for (const m of target.members || []) {
+        if (isRealMember(m)) {
+          const key = m.email.toLowerCase().trim();
+          if (!combinedDeleted.includes(key) && !map.has(key)) {
+            map.set(key, m);
+          }
+        }
+      }
+
+      const merged = Array.from(map.values());
+      const isChanged =
+        merged.length !== (target.members || []).length ||
+        merged.some((m, idx) => target.members[idx]?.email?.toLowerCase() !== m.email.toLowerCase()) ||
+        combinedDeleted.length !== (target.deletedMemberEmails || []).length;
 
       if (isChanged) {
-        const updated: Workspace = { ...target, members: merged };
+        const updated: Workspace = {
+          ...target,
+          members: merged,
+          deletedMemberEmails: combinedDeleted
+        };
         saveActiveWorkspace(updated);
-        window.dispatchEvent(new CustomEvent("projexa_workspace_members_change", { detail: { workspaceId, members: merged } }));
+        window.dispatchEvent(
+          new CustomEvent("projexa_workspace_members_change", {
+            detail: { workspaceId, members: merged, deletedMemberEmails: combinedDeleted }
+          })
+        );
         window.dispatchEvent(new Event("projexa_session_change"));
         onMembersUpdatedRef.current?.(merged, senderName || "Sync");
       }
@@ -249,7 +298,11 @@ export const useWorkspaceSocket = ({
               onTasksUpdatedRef.current?.(normalized, sender || "Live Sync");
             }
             if (Array.isArray(data.members)) {
-              applyRemoteMembers(data.members, typeof data.sender === "string" ? data.sender : "Broadcast");
+              applyRemoteMembers(
+                data.members,
+                typeof data.sender === "string" ? data.sender : "Broadcast",
+                Array.isArray(data.deletedMemberEmails) ? data.deletedMemberEmails : []
+              );
             }
           }
         };
@@ -385,8 +438,11 @@ export const useWorkspaceSocket = ({
         });
         if (!res.ok) return;
         const data = await res.json();
-        if (!isSubscribed || !data || !Array.isArray(data.members)) return;
-        applyRemoteMembers(data.members, data.lastSender || "Cloud Sync");
+        applyRemoteMembers(
+          data.members,
+          data.lastSender || "Cloud Sync",
+          Array.isArray(data.deletedMemberEmails) ? data.deletedMemberEmails : []
+        );
       } catch {}
     };
 

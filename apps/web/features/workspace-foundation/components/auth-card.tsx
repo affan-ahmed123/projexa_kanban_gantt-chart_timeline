@@ -4,18 +4,19 @@ import { useState, useEffect, type FormEvent, type ReactElement } from "react";
 import { CheckCircle2, LogIn, Sparkles, UserPlus } from "lucide-react";
 import {
   authenticateUser,
-  getRegisteredUsers,
   isUserRegistered,
   registerUser,
-  type UserSession,
-  type WorkspaceMember
+  resetUserPassword,
+  type UserSession
 } from "../workspace.service";
 import { detectGender } from "../utils/profile-avatar";
 import { LoginForm } from "./auth/login-form";
 import { SignupForm } from "./auth/signup-form";
 import { VerifyCodeForm } from "./auth/verify-code-form";
+import { ForgotPasswordForm } from "./auth/forgot-password-form";
+import { SmtpSettingsModal } from "./smtp-settings-modal";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "signup" | "forgot";
 type SignupStep = "form" | "verify";
 
 type AuthCardProps = Readonly<{
@@ -44,6 +45,9 @@ export const AuthCard = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [fallbackCode, setFallbackCode] = useState<string | null>(null);
+  const [smtpDeliveryNotice, setSmtpDeliveryNotice] = useState<string | null>(null);
+  const [smtpModalOpen, setSmtpModalOpen] = useState(false);
   const [infoBanner, setInfoBanner] = useState<string | null>(
     inviteEmail
       ? `You have been invited as ${inviteRole || "a Team Member"}! Create your account and password to access the workspace.`
@@ -88,7 +92,11 @@ export const AuthCard = ({
       setError(res.error || "Failed to sign in. Please verify your email and password.");
       return;
     }
-    if (onSuccess) onSuccess(res.user);
+    if (onSuccess) {
+      onSuccess(res.user);
+    } else if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
   };
 
   const handleInitiateSignup = async (e: FormEvent) => {
@@ -118,10 +126,26 @@ export const AuthCard = ({
         setError(data.error || "Failed to dispatch verification email. Please try again.");
         return;
       }
+      const returnedCode = data.verificationCode || data.debugCode;
+      if (!data.emailSent) {
+        setFallbackCode(returnedCode || null);
+        if (returnedCode) {
+          setVerificationCode(returnedCode);
+        }
+        setSmtpDeliveryNotice(
+          data.deliveryError?.includes("BadCredentials") || data.deliveryError?.includes("535")
+            ? "Gmail SMTP credentials rejected (BadCredentials). Your verification code is auto-filled below:"
+            : "Email server delivery unavailable. Your verification code is auto-filled below:"
+        );
+        setInfoBanner(null);
+      } else {
+        setFallbackCode(null);
+        setSmtpDeliveryNotice(null);
+        setVerificationCode("");
+        setInfoBanner(`A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder.`);
+      }
       setSignupStep("verify");
-      setVerificationCode("");
       setResendCooldown(30);
-      setInfoBanner(`A 6-digit verification code has been sent to ${cleanEmail}. Check your inbox or spam folder.`);
     } catch {
       setSubmitting(false);
       setError("Network error while sending verification code. Please check your connection.");
@@ -142,8 +166,24 @@ export const AuthCard = ({
       const data = await res.json();
       setSubmitting(false);
       if (!res.ok || !data.success) { setError(data.error || "Failed to resend code."); return; }
+      const returnedCode = data.verificationCode || data.debugCode;
+      if (!data.emailSent) {
+        setFallbackCode(returnedCode || null);
+        if (returnedCode) {
+          setVerificationCode(returnedCode);
+        }
+        setSmtpDeliveryNotice(
+          data.deliveryError?.includes("BadCredentials") || data.deliveryError?.includes("535")
+            ? "Gmail SMTP credentials rejected (BadCredentials). Your fresh verification code is below:"
+            : "Email server delivery unavailable. Your fresh verification code is below:"
+        );
+        setInfoBanner(null);
+      } else {
+        setFallbackCode(null);
+        setSmtpDeliveryNotice(null);
+        setInfoBanner(`A fresh verification code was sent to ${email.trim().toLowerCase()}.`);
+      }
       setResendCooldown(30);
-      setInfoBanner(`A fresh verification code was sent to ${email.trim().toLowerCase()}.`);
     } catch {
       setSubmitting(false);
       setError("Network error while resending verification code.");
@@ -207,21 +247,35 @@ export const AuthCard = ({
             <span>Projexa Authentication</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-sm">
-            {mode === "login" ? "Sign In to" : signupStep === "verify" ? "Verify Email for" : "Create Account on"}{" "}
+            {mode === "login"
+              ? "Sign In to"
+              : mode === "forgot"
+                ? "Reset Password on"
+                : signupStep === "verify"
+                  ? "Verify Email for"
+                  : "Create Account on"}{" "}
             <span className="bg-gradient-to-r from-[#0c4a63] via-[#0891b2] to-[#06b6d4] dark:from-cyan-300 dark:via-teal-200 dark:to-white bg-clip-text text-transparent">Projexa</span>
           </h1>
           <p className="mt-1.5 text-xs text-slate-500 dark:text-cyan-100/75">
-            {mode === "login" ? "Access your isolated workspaces, boards, and sprints" : signupStep === "verify" ? "Enter the 6-digit verification code sent to your email" : "Set up your profile and join squad workspaces"}
+            {mode === "login"
+              ? "Access your isolated workspaces, boards, and sprints"
+              : mode === "forgot"
+                ? "Recover your account credentials and regain workspace access"
+                : signupStep === "verify"
+                  ? "Enter the 6-digit verification code sent to your email"
+                  : "Set up your profile and join squad workspaces"}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1 mb-6 dark:border-cyan-400/30 dark:bg-[#072432]/80">
-          <button className={`inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${mode === "login" ? "bg-white text-slate-900 shadow-xs dark:bg-cyan-600 dark:text-white font-black" : "text-slate-600 hover:text-slate-900 dark:text-cyan-200/80 dark:hover:text-white"}`} onClick={() => { setMode("login"); setSignupStep("form"); setEmail(""); setName(""); setPassword(""); setError(null); setInfoBanner(null); }} type="button">
-            <LogIn className="size-3.5" /><span>Sign In</span>
-          </button>
-          <button className={`inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${mode === "signup" ? "bg-white text-slate-900 shadow-xs dark:bg-cyan-600 dark:text-white font-black" : "text-slate-600 hover:text-slate-900 dark:text-cyan-200/80 dark:hover:text-white"}`} onClick={() => { setMode("signup"); setSignupStep("form"); setEmail(""); setName(""); setPassword(""); setError(null); setInfoBanner(null); setSuccessBanner(null); }} type="button">
-            <UserPlus className="size-3.5" /><span>Create Account</span>
-          </button>
-        </div>
+        {mode !== "forgot" && (
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1 mb-6 dark:border-cyan-400/30 dark:bg-[#072432]/80">
+            <button className={`inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${mode === "login" ? "bg-white text-slate-900 shadow-xs dark:bg-cyan-600 dark:text-white font-black" : "text-slate-600 hover:text-slate-900 dark:text-cyan-200/80 dark:hover:text-white"}`} onClick={() => { setMode("login"); setSignupStep("form"); setEmail(""); setName(""); setPassword(""); setError(null); setInfoBanner(null); setFallbackCode(null); setSmtpDeliveryNotice(null); }} type="button">
+              <LogIn className="size-3.5" /><span>Sign In</span>
+            </button>
+            <button className={`inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${mode === "signup" ? "bg-white text-slate-900 shadow-xs dark:bg-cyan-600 dark:text-white font-black" : "text-slate-600 hover:text-slate-900 dark:text-cyan-200/80 dark:hover:text-white"}`} onClick={() => { setMode("signup"); setSignupStep("form"); setEmail(""); setName(""); setPassword(""); setError(null); setInfoBanner(null); setSuccessBanner(null); setFallbackCode(null); setSmtpDeliveryNotice(null); }} type="button">
+              <UserPlus className="size-3.5" /><span>Create Account</span>
+            </button>
+          </div>
+        )}
         {successBanner && mode === "login" && (
           <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-50/95 p-3.5 text-xs text-emerald-950 shadow-sm dark:border-emerald-400/50 dark:bg-emerald-950/80 dark:text-emerald-100 animate-in fade-in slide-in-from-top-1">
             <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
@@ -234,14 +288,75 @@ export const AuthCard = ({
           </div>
         )}
         {error && <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs font-semibold text-rose-800 shadow-2xs dark:border-rose-500/50 dark:bg-rose-950/80 dark:text-rose-200 animate-in fade-in">{error}</div>}
-        {mode === "login" ? (
-          <LoginForm email={email} onClearSuccessBanner={() => setSuccessBanner(null)} onSubmit={handleLogin} password={password} setEmail={setEmail} setPassword={setPassword} setShowPassword={setShowPassword} showPassword={showPassword} submitting={submitting} />
+        {mode === "forgot" ? (
+          <ForgotPasswordForm
+            email={email}
+            isRegisteredCheck={(em) => isUserRegistered(em)}
+            onBackToLogin={() => {
+              setMode("login");
+              setError(null);
+              setInfoBanner(null);
+            }}
+            onPasswordResetSuccess={(_em, msg) => {
+              setMode("login");
+              setSuccessBanner(msg);
+              setError(null);
+              setInfoBanner(null);
+            }}
+            onResetPasswordInStorage={(em, pass) => resetUserPassword(em, pass)}
+            setEmail={setEmail}
+          />
+        ) : mode === "login" ? (
+          <LoginForm
+            email={email}
+            onClearSuccessBanner={() => setSuccessBanner(null)}
+            onForgotPassword={() => {
+              setMode("forgot");
+              setError(null);
+              setInfoBanner(null);
+              setSuccessBanner(null);
+            }}
+            onSubmit={handleLogin}
+            password={password}
+            setEmail={setEmail}
+            setPassword={setPassword}
+            setShowPassword={setShowPassword}
+            showPassword={showPassword}
+            submitting={submitting}
+          />
         ) : signupStep === "verify" ? (
-          <VerifyCodeForm email={email} onBackToSignup={() => { setSignupStep("form"); setError(null); setInfoBanner(null); }} onResendCode={handleResendCode} onSubmit={handleVerifyAndRegister} resendCooldown={resendCooldown} setVerificationCode={setVerificationCode} submitting={submitting} verificationCode={verificationCode} />
+          <VerifyCodeForm
+            email={email}
+            fallbackCode={fallbackCode}
+            onBackToSignup={() => {
+              setSignupStep("form");
+              setError(null);
+              setInfoBanner(null);
+              setFallbackCode(null);
+              setSmtpDeliveryNotice(null);
+            }}
+            onOpenSmtpSettings={() => setSmtpModalOpen(true)}
+            onResendCode={handleResendCode}
+            onSubmit={handleVerifyAndRegister}
+            resendCooldown={resendCooldown}
+            setVerificationCode={setVerificationCode}
+            smtpDeliveryNotice={smtpDeliveryNotice}
+            submitting={submitting}
+            verificationCode={verificationCode}
+          />
         ) : (
           <SignupForm email={email} name={name} onSubmit={handleInitiateSignup} password={password} setEmail={setEmail} setName={setName} setPassword={setPassword} setShowPassword={setShowPassword} showPassword={showPassword} submitting={submitting} />
         )}
+
       </div>
+
+      {smtpModalOpen && (
+        <SmtpSettingsModal
+          currentUserEmail={email}
+          isOpen={smtpModalOpen}
+          onClose={() => setSmtpModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

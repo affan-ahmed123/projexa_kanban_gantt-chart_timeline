@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, KeyRound, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, KeyRound, RefreshCw, Settings, ShieldCheck } from "lucide-react";
 import type { FormEvent, ReactElement } from "react";
 
 type VerifyCodeFormProps = Readonly<{
@@ -12,6 +12,9 @@ type VerifyCodeFormProps = Readonly<{
   onSubmit: (e: FormEvent) => void;
   onBackToSignup: () => void;
   onResendCode: () => void;
+  fallbackCode?: string | null | undefined;
+  smtpDeliveryNotice?: string | null | undefined;
+  onOpenSmtpSettings?: (() => void) | undefined;
 }>;
 
 export const VerifyCodeForm = ({
@@ -22,7 +25,10 @@ export const VerifyCodeForm = ({
   resendCooldown,
   onSubmit,
   onBackToSignup,
-  onResendCode
+  onResendCode,
+  fallbackCode,
+  smtpDeliveryNotice,
+  onOpenSmtpSettings
 }: VerifyCodeFormProps): ReactElement => {
   return (
     <form autoComplete="off" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200" noValidate onSubmit={onSubmit}>
@@ -34,6 +40,48 @@ export const VerifyCodeForm = ({
         <p className="mt-1 text-xs text-slate-600 dark:text-cyan-200/80">We sent a 6-digit code to:</p>
         <p className="mt-0.5 text-xs font-black text-cyan-700 dark:text-cyan-300 break-all">{email}</p>
       </div>
+
+      {fallbackCode && (
+        <div className="rounded-2xl border border-amber-400/70 bg-amber-50/95 p-3.5 text-xs text-amber-950 dark:border-amber-400/50 dark:bg-amber-950/80 dark:text-amber-100 space-y-2 animate-in fade-in">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-xs">
+                {smtpDeliveryNotice || "Email delivery failed via SMTP. Use the verification code below:"}
+              </p>
+              <div className="mt-2 flex items-center justify-between rounded-xl bg-white/90 dark:bg-[#041520] border border-amber-300 dark:border-amber-500/50 px-3 py-2 shadow-2xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-cyan-200/70 block">
+                    Your 6-Digit Code:
+                  </span>
+                  <span className="font-mono text-xl font-black tracking-widest text-amber-700 dark:text-amber-300">
+                    {fallbackCode}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVerificationCode(fallbackCode)}
+                  className="rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold text-[11px] px-3 py-1.5 cursor-pointer transition shadow-xs active:scale-95"
+                >
+                  Auto-fill Code
+                </button>
+              </div>
+            </div>
+          </div>
+          {onOpenSmtpSettings && (
+            <div className="pt-0.5 text-right">
+              <button
+                type="button"
+                onClick={onOpenSmtpSettings}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 hover:underline cursor-pointer"
+              >
+                <Settings className="size-3" />
+                <span>Configure Gmail SMTP for real inbox delivery</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-cyan-100 text-center">

@@ -1,21 +1,35 @@
 "use client";
 
-import { Crown, Trash2 } from "lucide-react";
-import type { ReactElement } from "react";
-import type { WorkspaceMember } from "../workspace.service";
+import { Check, Copy, Crown, Trash2 } from "lucide-react";
+import { useState, type ReactElement } from "react";
+import { createInvitationUrl, type Workspace, type WorkspaceMember } from "../workspace.service";
 import { getAvatarUrl } from "../utils/profile-avatar";
 
 type InviteMembersRosterProps = Readonly<{
   membersList: readonly WorkspaceMember[];
   leadEmail: string;
+  workspace?: Workspace;
   onRemoveMember: (memberId: string, memberName: string) => void;
 }>;
 
 export const InviteMembersRoster = ({
   membersList,
   leadEmail,
+  workspace,
   onRemoveMember
 }: InviteMembersRosterProps): ReactElement => {
+  const [copiedMemberId, setCopiedMemberId] = useState<string | null>(null);
+
+  const handleCopyLink = (m: WorkspaceMember) => {
+    if (!workspace) return;
+    const url = createInvitationUrl(workspace, m);
+    if (navigator?.clipboard?.writeText) {
+      void navigator.clipboard.writeText(url);
+    }
+    setCopiedMemberId(m.id);
+    setTimeout(() => setCopiedMemberId(null), 2500);
+  };
+
   return (
     <div className="border-t border-slate-200 dark:border-cyan-400/20 pt-3">
       <div className="flex items-center justify-between mb-2">
@@ -62,6 +76,28 @@ export const InviteMembersRoster = ({
                 <span className="rounded bg-white border border-slate-300 px-1.5 py-0.5 text-[9px] font-medium text-slate-700 dark:bg-cyan-950/80 dark:border-cyan-400/30 dark:text-cyan-200">
                   {m.role}
                 </span>
+
+                {!isLead && workspace && (
+                  <button
+                    aria-label={`Copy direct invite link for ${m.name}`}
+                    className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-cyan-800 bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-900/60 dark:text-cyan-200 dark:hover:bg-cyan-800/80 transition cursor-pointer"
+                    onClick={() => handleCopyLink(m)}
+                    title={`Copy direct invite link for ${m.name}`}
+                    type="button"
+                  >
+                    {copiedMemberId === m.id ? (
+                      <>
+                        <Check className="size-3 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3 text-cyan-700 dark:text-cyan-300" />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
                 {!isLead && (
                   <button

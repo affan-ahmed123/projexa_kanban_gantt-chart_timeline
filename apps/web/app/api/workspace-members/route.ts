@@ -23,6 +23,7 @@ type WorkspaceRegistryEntry = {
     gender?: "neutral" | "male" | "female" | undefined;
   } | undefined;
   members: WorkspaceMemberRecord[];
+  deletedMemberEmails?: string[] | undefined;
   version: number;
   updatedAt: number;
   lastSender?: string | undefined;
@@ -59,6 +60,11 @@ export async function GET(request: Request) {
   }
 
   const record = globalWorkspaceRegistry.get(workspaceId);
+  const deletedSet = new Set((record?.deletedMemberEmails || []).map((e) => e.toLowerCase().trim()));
+  const activeMembers = (record?.members || []).filter(
+    (m) => isRealMemberRecord(m) && !deletedSet.has(m.email.toLowerCase().trim())
+  );
+
   return NextResponse.json(
     {
       workspaceId,
@@ -68,7 +74,8 @@ export async function GET(request: Request) {
       department: record?.department,
       creatorEmail: record?.creatorEmail,
       teamLead: record?.teamLead,
-      members: record ? record.members.filter(isRealMemberRecord) : [],
+      members: activeMembers,
+      deletedMemberEmails: record?.deletedMemberEmails || [],
       version: record ? record.version : 0,
       updatedAt: record ? record.updatedAt : 0,
       lastSender: record?.lastSender
@@ -93,6 +100,10 @@ export async function POST(request: Request) {
       };
       member?: WorkspaceMemberRecord;
       members?: WorkspaceMemberRecord[];
+      deletedMemberEmails?: string[];
+      removedMemberEmail?: string;
+      replaceMembers?: boolean;
+      action?: string;
       sender?: string;
     };
 
@@ -106,6 +117,8 @@ export async function POST(request: Request) {
       teamLead,
       member,
       members,
+      deletedMemberEmails,
+      removedMemberEmail,
       sender
     } = body;
 
@@ -117,6 +130,7 @@ export async function POST(request: Request) {
     const record: WorkspaceRegistryEntry = existingRecord ?? {
       workspaceId,
       members: [],
+      deletedMemberEmails: [],
       version: 0,
       updatedAt: Date.now()
     };
@@ -147,45 +161,60 @@ export async function POST(request: Request) {
       record.lastSender = sender.trim();
     }
 
-    // Merge members list without duplicates
-    const mergedMap = new Map<string, WorkspaceMemberRecord>();
-    for (const m of record.members) {
-      if (isRealMemberRecord(m)) mergedMap.set(m.email.toLowerCase().trim(), m);
-    }
+    // Accumulate deleted member emails so removed members can never be accidentally resurrected
+    const deletedSet = new Set(
+      [
+        ...(record.deletedMemberEmails || []),
+        ...(Array.isArray(deletedMemberEmails) ? deletedMemberEmails : []),
+        ...(removedMemberEmail ? [removedMemberEmail] : [])
+      ]
+        .map((e) => (typeof e === "string" ? e.trim().toLowerCase() : ""))
+        .filter(Boolean)
+    );
 
-    // Add members from array
+    // If a full members array is supplied (from saveActiveWorkspace, removeMember, or addMember),
+    // it is authoritative: sanitize and replace record.members directly, excluding any deleted members.
     if (Array.isArray(members)) {
+      const sanitized: WorkspaceMemberRecord[] = [];
+      const seen = new Set<string>();
       for (const m of members) {
         if (isRealMemberRecord(m)) {
           const emailKey = m.email.trim().toLowerCase();
-          const existing = mergedMap.get(emailKey);
-          const cleanName = m.name?.replace(/::(male|female)$/, "") || existing?.name || emailKey.split("@")[0] || "Team Member";
-          mergedMap.set(emailKey, {
-            id: m.id || existing?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: cleanName,
-            email: emailKey,
-            role: m.role || existing?.role || "Developer",
-            gender: m.gender || existing?.gender || "neutral"
-          });
+          if (!deletedSet.has(emailKey) && !seen.has(emailKey)) {
+            seen.add(emailKey);
+            const cleanName = m.name?.replace(/::(male|female)$/, "") || emailKey.split("@")[0] || "Team Member";
+            sanitized.push({
+              id: m.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              name: cleanName,
+              email: emailKey,
+              role: m.role || "Developer",
+              gender: m.gender || "neutral"
+            });
+          }
         }
+      }
+      record.members = sanitized;
+    } else if (isRealMemberRecord(member)) {
+      // Adding a single member explicitly removes them from the deleted set
+      const emailKey = member.email.trim().toLowerCase();
+      deletedSet.delete(emailKey);
+      const cleanName = member.name?.replace(/::(male|female)$/, "") || emailKey.split("@")[0] || "Team Member";
+      const existingIdx = record.members.findIndex((m) => m.email.toLowerCase().trim() === emailKey);
+      const newRec: WorkspaceMemberRecord = {
+        id: member.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: cleanName,
+        email: emailKey,
+        role: member.role || "Developer",
+        gender: member.gender || "neutral"
+      };
+      if (existingIdx >= 0) {
+        record.members[existingIdx] = newRec;
+      } else {
+        record.members.push(newRec);
       }
     }
 
-    // Add single member if provided
-    if (isRealMemberRecord(member)) {
-      const emailKey = member.email.trim().toLowerCase();
-      const existing = mergedMap.get(emailKey);
-      const cleanName = member.name?.replace(/::(male|female)$/, "") || existing?.name || emailKey.split("@")[0] || "Team Member";
-      mergedMap.set(emailKey, {
-        id: member.id || existing?.id || `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: cleanName,
-        email: emailKey,
-        role: member.role || existing?.role || "Developer",
-        gender: member.gender || existing?.gender || "neutral"
-      });
-    }
-
-    record.members = Array.from(mergedMap.values());
+    record.deletedMemberEmails = Array.from(deletedSet);
     record.version = (record.version || 0) + 1;
     record.updatedAt = Date.now();
     globalWorkspaceRegistry.set(workspaceId, record);
@@ -195,6 +224,7 @@ export async function POST(request: Request) {
         success: true,
         workspaceId,
         members: record.members,
+        deletedMemberEmails: record.deletedMemberEmails,
         version: record.version,
         count: record.members.length
       },
@@ -203,6 +233,48 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to sync workspace members" },
+      { status: 500, headers: NO_CACHE_HEADERS }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const workspaceId = searchParams.get("workspaceId");
+    const email = searchParams.get("email")?.toLowerCase().trim();
+    const memberId = searchParams.get("memberId");
+
+    if (!workspaceId || (!email && !memberId)) {
+      return NextResponse.json({ error: "workspaceId and email/memberId are required" }, { status: 400 });
+    }
+
+    const record = globalWorkspaceRegistry.get(workspaceId);
+    if (record) {
+      if (email) {
+        record.deletedMemberEmails = Array.from(new Set([...(record.deletedMemberEmails || []), email]));
+        record.members = record.members.filter((m) => m.email.toLowerCase().trim() !== email);
+      }
+      if (memberId) {
+        record.members = record.members.filter((m) => m.id !== memberId);
+      }
+      record.version = (record.version || 0) + 1;
+      record.updatedAt = Date.now();
+      globalWorkspaceRegistry.set(workspaceId, record);
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        workspaceId,
+        members: record?.members || [],
+        deletedMemberEmails: record?.deletedMemberEmails || []
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete workspace member" },
       { status: 500, headers: NO_CACHE_HEADERS }
     );
   }

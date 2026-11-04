@@ -13,6 +13,7 @@ type LoginFormProps = Readonly<{
   submitting: boolean;
   onSubmit: (e: FormEvent) => void;
   onClearSuccessBanner?: () => void;
+  onForgotPassword?: () => void;
 }>;
 
 export const LoginForm = ({
@@ -24,7 +25,8 @@ export const LoginForm = ({
   setShowPassword,
   submitting,
   onSubmit,
-  onClearSuccessBanner
+  onClearSuccessBanner,
+  onForgotPassword
 }: LoginFormProps): ReactElement => {
   return (
     <form autoComplete="off" className="space-y-4" noValidate onSubmit={onSubmit}>
@@ -64,9 +66,21 @@ export const LoginForm = ({
       </div>
 
       <div>
-        <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-cyan-100">
-          Password
-        </label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 dark:text-cyan-100">
+            Password
+          </label>
+          {onForgotPassword && (
+            <button
+              className="text-[11px] font-bold text-cyan-600 hover:text-cyan-700 dark:text-cyan-300 dark:hover:text-cyan-200 hover:underline cursor-pointer transition"
+              onClick={onForgotPassword}
+              tabIndex={-1}
+              type="button"
+            >
+              Forgot password?
+            </button>
+          )}
+        </div>
         <div className="relative">
           <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-cyan-300/60" />
           <input

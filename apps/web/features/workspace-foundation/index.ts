@@ -17,6 +17,7 @@ export {
   setCurrentUser,
   registerUser,
   authenticateUser,
+  resetUserPassword,
   logoutUser,
   deleteUserAccount,
   getRegisteredUsers,

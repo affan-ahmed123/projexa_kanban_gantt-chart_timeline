@@ -202,3 +202,45 @@ export const deleteUserAccount = (email: string): { success: boolean; error?: st
     return { success: false, error: "Failed to delete account" };
   }
 };
+
+export const resetUserPassword = (
+  email: string,
+  newPassword: string
+): { success: boolean; error?: string } => {
+  if (typeof window === "undefined") return { success: false, error: "Client-side operation" };
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPass = newPassword.trim();
+
+  if (!cleanPass || cleanPass.length < 4) {
+    return { success: false, error: "Please enter a password with at least 4 characters." };
+  }
+
+  try {
+    const raw = localStorage.getItem("projexa_registered_users");
+    const list: StoredUser[] = raw ? JSON.parse(raw) : [];
+    const index = list.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+    if (index === -1) {
+      return { success: false, error: "No account found with this email." };
+    }
+    const userToUpdate = list[index];
+    if (!userToUpdate) {
+      return { success: false, error: "No account found with this email." };
+    }
+
+    const updatedUser: StoredUser = {
+      id: userToUpdate.id,
+      name: userToUpdate.name,
+      email: userToUpdate.email,
+      role: userToUpdate.role,
+      gender: userToUpdate.gender || "neutral",
+      createdAt: userToUpdate.createdAt,
+      password: cleanPass
+    };
+    list[index] = updatedUser;
+    localStorage.setItem("projexa_registered_users", JSON.stringify(list));
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to reset password", e);
+    return { success: false, error: "Failed to update password." };
+  }
+};
