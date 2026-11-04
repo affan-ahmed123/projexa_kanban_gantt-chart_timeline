@@ -165,34 +165,65 @@ export async function POST(request: Request) {
       );
     }
 
-    // inviteUrl validation: must be on application site origin and use http/https
-    if (!inviteUrl || typeof inviteUrl !== "string") {
-      return NextResponse.json(
-        { error: "inviteUrl is required and must be a valid URL string" },
-        { status: 400 }
-      );
-    }
+    const cleanWorkspaceId = typeof workspaceId === "string" ? workspaceId.trim() : "";
+    const cleanInviterName = typeof inviterName === "string" && inviterName.trim() ? inviterName.trim() : "Team Lead";
+    const cleanInviterEmail = typeof inviterEmail === "string" ? inviterEmail.trim() : "";
+    const cleanRecipientName = typeof recipientName === "string" && recipientName.trim()
+      ? recipientName.trim()
+      : cleanRecipientEmail.split("@")[0] || "Team Member";
 
-    const siteOrigin = new URL(request.url).origin;
-    let parsedInviteUrl: URL;
-    try {
-      parsedInviteUrl = new URL(inviteUrl);
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid inviteUrl" },
-        { status: 400 }
-      );
-    }
+    // Resolve host and origin dynamically from reverse proxy or request
+    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const host = forwardedHost || request.headers.get("host") || new URL(request.url).host;
+    const proto = request.headers.get("x-forwarded-proto") || (request.url.startsWith("https") ? "https" : "http");
+    const siteOrigin = `${proto}://${host}`;
+    const requestOrigin = new URL(request.url).origin;
 
-    if (
-      (parsedInviteUrl.protocol !== "http:" && parsedInviteUrl.protocol !== "https:") ||
-      parsedInviteUrl.origin !== siteOrigin ||
-      !inviteUrl.startsWith(siteOrigin)
-    ) {
-      return NextResponse.json(
-        { error: "inviteUrl must originate from the application host" },
-        { status: 400 }
-      );
+    // inviteUrl validation: must originate from the application host
+    let finalInviteUrl: string;
+    if (inviteUrl !== undefined && inviteUrl !== null) {
+      if (typeof inviteUrl !== "string" || !inviteUrl.trim()) {
+        return NextResponse.json(
+          { error: "inviteUrl is required and must be a valid URL string" },
+          { status: 400 }
+        );
+      }
+      let parsedInviteUrl: URL;
+      try {
+        parsedInviteUrl = new URL(inviteUrl);
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid inviteUrl" },
+          { status: 400 }
+        );
+      }
+
+      const isSameHost =
+        parsedInviteUrl.origin === siteOrigin ||
+        parsedInviteUrl.origin === requestOrigin ||
+        (parsedInviteUrl.hostname.endsWith(".vercel.app") && host.endsWith(".vercel.app"));
+
+      if (
+        (parsedInviteUrl.protocol !== "http:" && parsedInviteUrl.protocol !== "https:") ||
+        !isSameHost
+      ) {
+        return NextResponse.json(
+          { error: "inviteUrl must originate from the application host" },
+          { status: 400 }
+        );
+      }
+      finalInviteUrl = inviteUrl;
+    } else {
+      const cleanOrigin = siteOrigin.replace(/\/+$/, "");
+      const targetUrl = new URL("/", cleanOrigin);
+      if (cleanWorkspaceId) targetUrl.searchParams.set("workspaceId", cleanWorkspaceId);
+      targetUrl.searchParams.set("wsName", cleanWorkspaceName);
+      if (cleanInviterEmail) targetUrl.searchParams.set("leadEmail", cleanInviterEmail);
+      if (cleanInviterName) targetUrl.searchParams.set("leadName", cleanInviterName);
+      targetUrl.searchParams.set("inviteEmail", cleanRecipientEmail);
+      targetUrl.searchParams.set("inviteName", cleanRecipientName);
+      targetUrl.searchParams.set("role", cleanRole);
+      finalInviteUrl = targetUrl.toString();
     }
 
     // Recipient email rate limit: max 3 per hour
@@ -209,7 +240,6 @@ export async function POST(request: Request) {
     }
 
     // Workspace ID rate limit: max 30 per hour
-    const cleanWorkspaceId = typeof workspaceId === "string" ? workspaceId.trim() : "";
     let workspaceRequests: number[] = [];
     if (cleanWorkspaceId) {
       workspaceRequests = (workspaceLimitMap.get(cleanWorkspaceId) || []).filter((t) => t > oneHourAgo);
@@ -237,12 +267,6 @@ export async function POST(request: Request) {
       workspaceLimitMap.set(cleanWorkspaceId, workspaceRequests);
     }
 
-    const cleanInviterName = typeof inviterName === "string" && inviterName.trim() ? inviterName.trim() : "Team Lead";
-    const cleanInviterEmail = typeof inviterEmail === "string" ? inviterEmail.trim() : "";
-    const cleanRecipientName = typeof recipientName === "string" && recipientName.trim()
-      ? recipientName.trim()
-      : cleanRecipientEmail.split("@")[0] || "Team Member";
-
     // Clean subject with no \r or \n and max 150 chars
     const safeSubjectWorkspace = stripNewlines(cleanWorkspaceName);
     const rawSubject = `Invitation: Join "${safeSubjectWorkspace}" workspace on Projexa`;
@@ -254,7 +278,7 @@ export async function POST(request: Request) {
     const safeInviterEmailHtml = escapeHtml(cleanInviterEmail);
     const safeRecipientNameHtml = escapeHtml(cleanRecipientName);
     const safeRoleHtml = escapeHtml(cleanRole);
-    const safeInviteUrlHtml = escapeHtml(inviteUrl);
+    const safeInviteUrlHtml = escapeHtml(finalInviteUrl);
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -329,7 +353,7 @@ export async function POST(request: Request) {
 ${safeLeadNameText}${safeLeadEmailText ? ` (${safeLeadEmailText})` : ""} has invited you to join the "${safeWsNameText}" workspace on Projexa as a ${safeRoleText}.
 
 Please accept your invitation and join the workspace by visiting:
-${inviteUrl}
+${finalInviteUrl}
 
 Best regards,
 ${safeLeadNameText} (Team Lead)${safeLeadEmailText ? `\n${safeLeadEmailText}` : ""}`;
@@ -348,19 +372,19 @@ ${safeLeadNameText} (Team Lead)${safeLeadEmailText ? `\n${safeLeadEmailText}` : 
         const secure = process.env.SMTP_SECURE === "true" || port === 465;
 
         let transporter: ReturnType<typeof nodemailer.createTransport>;
-        if (smtpHost) {
+        if (smtpUser.endsWith("@gmail.com") || smtpHost === "smtp.gmail.com") {
           transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port,
-            secure,
+            service: "gmail",
             auth: {
               user: smtpUser,
               pass: smtpPass
             }
           });
-        } else if (smtpUser.endsWith("@gmail.com")) {
+        } else if (smtpHost) {
           transporter = nodemailer.createTransport({
-            service: "gmail",
+            host: smtpHost,
+            port,
+            secure,
             auth: {
               user: smtpUser,
               pass: smtpPass

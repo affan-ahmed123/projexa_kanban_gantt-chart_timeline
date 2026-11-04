@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Crown, Mail, Shield, Trash2, User, UserCheck, Users, X } from "lucide-react";
+import { Crown, Mail, Shield, Trash2, User, UserCheck, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { getAvatarUrl } from "../utils/profile-avatar";
@@ -12,7 +12,6 @@ import {
   type Workspace,
   type WorkspaceMember
 } from "../storage/workspace-storage";
-import { createInvitationUrl } from "../storage/invitation";
 import type { UserSession } from "../storage/auth-storage";
 
 type WorkspaceMembersModalProps = Readonly<{
@@ -50,18 +49,6 @@ export const WorkspaceMembersModal = ({
 }: WorkspaceMembersModalProps): ReactElement | null => {
   const [mounted, setMounted] = useState(false);
   const [activeWs, setActiveWs] = useState<Workspace | null>(workspace);
-  const [copiedMemberId, setCopiedMemberId] = useState<string | null>(null);
-
-  const handleCopyLink = (member: WorkspaceMember) => {
-    const ws = activeWs || workspace;
-    if (!ws) return;
-    const url = createInvitationUrl(ws, member);
-    if (navigator?.clipboard?.writeText) {
-      void navigator.clipboard.writeText(url);
-    }
-    setCopiedMemberId(member.id);
-    setTimeout(() => setCopiedMemberId(null), 2500);
-  };
 
   const handleRemoveMember = (member: WorkspaceMember) => {
     const ws = activeWs || workspace;
@@ -252,36 +239,15 @@ export const WorkspaceMembersModal = ({
                     {member.role}
                   </span>
                   {isTeamLead && !isMemberLead && currentWorkspace && (
-                    <>
-                      <button
-                        aria-label={`Copy invite link for ${member.name}`}
-                        className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-cyan-800 bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-900/60 dark:text-cyan-200 dark:hover:bg-cyan-800/80 transition cursor-pointer"
-                        onClick={() => handleCopyLink(member)}
-                        title={`Copy direct invite link for ${member.name}`}
-                        type="button"
-                      >
-                        {copiedMemberId === member.id ? (
-                          <>
-                            <Check className="size-3 text-emerald-600 dark:text-emerald-400" />
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="size-3 text-cyan-700 dark:text-cyan-300" />
-                            <span>Copy Link</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        aria-label={`Remove ${member.name}`}
-                        className="flex size-6 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/60 dark:hover:text-rose-400 transition cursor-pointer"
-                        onClick={() => handleRemoveMember(member)}
-                        title={`Remove ${member.name} from workspace`}
-                        type="button"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </>
+                    <button
+                      aria-label={`Remove ${member.name}`}
+                      className="flex size-6 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/60 dark:hover:text-rose-400 transition cursor-pointer"
+                      onClick={() => handleRemoveMember(member)}
+                      title={`Remove ${member.name} from workspace`}
+                      type="button"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
                   )}
                 </div>
               </div>

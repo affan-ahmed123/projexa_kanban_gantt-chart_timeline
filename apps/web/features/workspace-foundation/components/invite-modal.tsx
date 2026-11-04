@@ -5,9 +5,7 @@ import { createPortal } from "react-dom";
 import {
   AlertCircle,
   Briefcase,
-  Check,
   CheckCircle2,
-  Copy,
   Crown,
   Mail,
   Rocket,
@@ -73,10 +71,8 @@ export const InviteModal = ({
     emailSent: boolean;
     recipientEmail: string;
     recipientName: string;
-    inviteUrl: string;
     error?: string | undefined;
   } | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [smtpModalOpen, setSmtpModalOpen] = useState(false);
 
   useEffect(() => {
@@ -96,14 +92,6 @@ export const InviteModal = ({
   const leadName = currentUserName || workspace.teamLead?.name || "Team Lead";
   const leadEmail = currentUserEmail || workspace.teamLead?.email || "lead@workspace.com";
   const WsIcon = getWorkspaceIcon(workspace.icon);
-
-  const handleCopyLink = (url: string) => {
-    if (navigator?.clipboard?.writeText) {
-      void navigator.clipboard.writeText(url);
-    }
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
 
   const handleAddMember = async (e: FormEvent) => {
     e.preventDefault();
@@ -141,7 +129,6 @@ export const InviteModal = ({
       emailSent: Boolean(emailRes.emailSent),
       recipientEmail: cleanEmail,
       recipientName: displayName,
-      inviteUrl,
       error: emailRes.error
     });
     setEmail("");
@@ -231,90 +218,43 @@ export const InviteModal = ({
 
             {lastInviteResult && (
               <div
-                className={`rounded-2xl border p-3.5 text-xs animate-in fade-in duration-200 space-y-2.5 ${
+                className={`rounded-2xl border p-3.5 text-xs animate-in fade-in duration-200 ${
                   lastInviteResult.emailSent
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-950/60 dark:text-white"
-                    : "border-amber-300 bg-amber-50/90 text-amber-950 dark:border-amber-400/50 dark:bg-amber-950/60 dark:text-amber-100"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-950/70 dark:text-emerald-100"
+                    : "border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-500/50 dark:bg-rose-950/70 dark:text-rose-100"
                 }`}
               >
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-2.5">
                   {lastInviteResult.emailSent ? (
-                    <CheckCircle2 className="size-4.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   ) : (
-                    <AlertCircle className="size-4.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <AlertCircle className="size-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-xs sm:text-sm">
                       {lastInviteResult.emailSent
                         ? `Invitation Email Sent to ${lastInviteResult.recipientEmail}!`
-                        : `Member Added! (Direct Join Link Ready)`}
+                        : `Invitation Email Failed`}
                     </div>
-                    <p className="text-[11px] leading-snug mt-0.5 opacity-90">
+                    <p className="text-[11px] leading-snug mt-1 opacity-90">
                       {lastInviteResult.emailSent
-                        ? `An invitation email from Team Lead ${leadName} has been delivered to their inbox. You can also share the direct link below:`
-                        : lastInviteResult.error?.includes("535") || lastInviteResult.error?.includes("BadCredentials")
-                          ? "Gmail SMTP credentials rejected (BadCredentials). Member has been added! Copy and send this direct invitation link to your teammate:"
-                          : `Automatic email delivery was unavailable (${lastInviteResult.error || "SMTP not connected"}). Member has been added! Share this direct link with your colleague:`}
+                        ? `A direct workspace invitation from Team Lead ${leadName} has been delivered to ${lastInviteResult.recipientEmail}'s inbox. They can accept it directly from their email to join "${workspace.name}".`
+                        : `Could not send invitation email to ${lastInviteResult.recipientEmail} (${lastInviteResult.error || "Email delivery failed"}). Please verify SMTP settings and try again.`}
                     </p>
-                  </div>
-                </div>
-
-                {/* Direct Invite Link Copy Box */}
-                <div className="space-y-1.5 bg-white/80 dark:bg-[#031520]/80 p-2.5 rounded-xl border border-slate-200/80 dark:border-cyan-400/30">
-                  <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700 dark:text-cyan-200">
-                    <span>Direct Join Link for {lastInviteResult.recipientName}:</span>
-                    {copiedLink && (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ Copied to clipboard!</span>
+                    {!lastInviteResult.emailSent && (
+                      <div className="pt-2">
+                        <button
+                          className="inline-flex items-center gap-1 font-semibold text-rose-800 dark:text-rose-200 hover:underline cursor-pointer text-[11px]"
+                          onClick={() => setSmtpModalOpen(true)}
+                          type="button"
+                        >
+                          <Settings className="size-3" />
+                          <span>Update SMTP Settings</span>
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      aria-label="Direct invitation URL"
-                      className="h-8 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-mono text-slate-800 select-all outline-none dark:border-cyan-400/40 dark:bg-[#041822] dark:text-white"
-                      readOnly
-                      type="text"
-                      value={lastInviteResult.inviteUrl}
-                    />
-                    <button
-                      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg font-bold text-[11px] transition shadow-xs cursor-pointer shrink-0 text-white ${
-                        lastInviteResult.emailSent
-                          ? "bg-emerald-600 hover:bg-emerald-700"
-                          : "bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-500"
-                      }`}
-                      onClick={() => handleCopyLink(lastInviteResult.inviteUrl)}
-                      type="button"
-                    >
-                      {copiedLink ? (
-                        <>
-                          <Check className="size-3.5" />
-                          <span>Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="size-3.5" />
-                          <span>Copy Link</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-cyan-200/60 leading-tight">
-                    Send this link via WhatsApp, Slack, or direct message. When your colleague clicks it, they will join the workspace instantly.
-                  </p>
                 </div>
-
-                {!lastInviteResult.emailSent && (
-                  <div className="flex items-center justify-between pt-0.5 text-[11px]">
-                    <span className="text-slate-500 dark:text-cyan-200/70">Want automated emails?</span>
-                    <button
-                      className="inline-flex items-center gap-1 font-semibold text-cyan-700 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100 hover:underline cursor-pointer"
-                      onClick={() => setSmtpModalOpen(true)}
-                      type="button"
-                    >
-                      <Settings className="size-3" />
-                      <span>Update SMTP Settings</span>
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
