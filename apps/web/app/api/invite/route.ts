@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
-// Production mein trusted proxy header aur shared store (Redis/KV) chahiye, in-memory limit serverless pe instance-local hai.
+// Production requires trusted proxy header and shared store (Redis/KV), in-memory limit is instance-local in serverless environments.
 const globalRateLimit = globalThis as unknown as {
   __inviteIpLimit?: Map<string, number[]>;
   __inviteEmailLimit?: Map<string, number[]>;
@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     if (ipRequests.length >= 20) {
       return NextResponse.json(
         {
-          error: "Bohat zyada requests, baad mein try karo",
-          message: "Bohat zyada requests, baad mein try karo",
+          error: "Too many requests. Please try again later.",
+          message: "Too many requests. Please try again later.",
           emailSent: false
         },
         { status: 429, headers: { "Retry-After": "3600" } }
@@ -231,8 +231,8 @@ export async function POST(request: Request) {
     if (emailRequests.length >= 3) {
       return NextResponse.json(
         {
-          error: "Bohat zyada requests, baad mein try karo",
-          message: "Bohat zyada requests, baad mein try karo",
+          error: "Too many requests. Please try again later.",
+          message: "Too many requests. Please try again later.",
           emailSent: false
         },
         { status: 429, headers: { "Retry-After": "3600" } }
@@ -246,8 +246,8 @@ export async function POST(request: Request) {
       if (workspaceRequests.length >= 30) {
         return NextResponse.json(
           {
-            error: "Bohat zyada requests, baad mein try karo",
-            message: "Bohat zyada requests, baad mein try karo",
+            error: "Too many requests. Please try again later.",
+            message: "Too many requests. Please try again later.",
             emailSent: false
           },
           { status: 429, headers: { "Retry-After": "3600" } }
@@ -408,7 +408,7 @@ ${safeLeadNameText} (Team Lead)${safeLeadEmailText ? `\n${safeLeadEmailText}` : 
         emailSent = true;
         messageId = info.messageId;
       } catch (err) {
-        // Server console mein sirf error.message log karo, poora error object ya credentials nahi
+        // Log only error.message to server console, not full error object or credentials
         console.error(err instanceof Error ? err.message : String(err));
       }
     }
@@ -417,8 +417,8 @@ ${safeLeadNameText} (Team Lead)${safeLeadEmailText ? `\n${safeLeadEmailText}` : 
       return NextResponse.json({
         success: false,
         emailSent: false,
-        message: "Email send nahi ho saki",
-        error: "Email send nahi ho saki"
+        message: "Unable to send invitation email. Please try again.",
+        error: "Unable to send invitation email. Please try again."
       });
     }
 

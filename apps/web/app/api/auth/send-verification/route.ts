@@ -273,8 +273,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: false,
         emailSent: false,
-        message: "Email send nahi ho saki, dobara try karo",
-        error: "Email send nahi ho saki, dobara try karo",
+        message: "Unable to send verification email. Please try again.",
+        error: "Unable to send verification email. Please try again.",
         ...(isDev ? { debugCode: verificationCode } : {})
       });
     }

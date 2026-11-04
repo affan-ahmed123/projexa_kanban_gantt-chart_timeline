@@ -132,7 +132,7 @@ export const fetchObservabilityTelemetry = async (
       return {
         status: "error",
         statusCode: 503,
-        error: "OBSERVABILITY_ADMIN_KEY server par set nahi hai."
+        error: "OBSERVABILITY_ADMIN_KEY is not configured on the server."
       };
     }
 
@@ -175,13 +175,13 @@ export const fetchObservabilityTelemetry = async (
   } catch {
     return {
       status: "error",
-      error: "Server reach nahi ho raha"
+      error: "Unable to reach server"
     };
   }
 };
 
 // Safe Cache Purge Utility:
-// Rule 1: Reset Samples sirf samples clear kare, admin key nahi.
+// Reset Samples clears samples only, not the admin key.
 export const purgeObservabilityCache = (): { success: boolean; clearedSamplesCount: number } => {
   let totalCleared = 0;
   for (const key of Object.keys(latencySamples) as Array<keyof MonitoredEndpoints>) {

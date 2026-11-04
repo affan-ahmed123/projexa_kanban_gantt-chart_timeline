@@ -96,8 +96,8 @@ export const ServiceHealthGrid = (): ReactElement => {
         setNetworkError(null);
         setLastRefreshedAt(new Date());
       } else if (result.status === "error") {
-        if (result.error === "Server reach nahi ho raha") {
-          setNetworkError("Server reach nahi ho raha");
+        if (result.error === "Unable to reach server") {
+          setNetworkError("Unable to reach server");
         }
       } else if (result.status === "needs_key") {
         setLastGoodData(null);
@@ -475,7 +475,7 @@ export const ServiceHealthGrid = (): ReactElement => {
               {isEmail && (
                 <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 dark:border-[#1a2940] dark:bg-[#152336]/60">
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                    Ye sirf configuration check hai, email delivery ka test nahi.
+                    This is only a configuration check, not an email delivery test.
                   </p>
                 </div>
               )}
