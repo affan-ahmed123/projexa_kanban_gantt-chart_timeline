@@ -152,7 +152,7 @@ export const InviteModal = ({
           <div className="hidden dark:block pointer-events-none absolute top-0 left-0 right-0 h-[2px] overflow-hidden z-10">
             <div className="h-full w-1/2 bg-gradient-to-r from-transparent via-cyan-300 to-transparent animate-beam-slide" />
           </div>
-          
+
           {/* Fixed Header */}
           <div className="flex items-center justify-between border-b border-slate-200 px-5 pt-5 pb-3.5 sm:px-6 dark:border-cyan-400/30 shrink-0">
             <div className="flex items-center gap-2.5">
@@ -218,11 +218,10 @@ export const InviteModal = ({
 
             {lastInviteResult && (
               <div
-                className={`rounded-2xl border p-3.5 text-xs animate-in fade-in duration-200 ${
-                  lastInviteResult.emailSent
+                className={`rounded-2xl border p-3.5 text-xs animate-in fade-in duration-200 ${lastInviteResult.emailSent
                     ? "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-950/70 dark:text-emerald-100"
                     : "border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-500/50 dark:bg-rose-950/70 dark:text-rose-100"
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-2.5">
                   {lastInviteResult.emailSent ? (

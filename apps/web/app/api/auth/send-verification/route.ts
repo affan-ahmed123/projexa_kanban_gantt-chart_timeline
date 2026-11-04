@@ -133,19 +133,19 @@ export async function POST(request: Request) {
     if (smtpUser && smtpPass) {
       try {
         let transporter: ReturnType<typeof nodemailer.createTransport>;
-        if (smtpHost) {
+        if (smtpUser.endsWith("@gmail.com") || smtpHost === "smtp.gmail.com") {
           transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port,
-            secure,
+            service: "gmail",
             auth: {
               user: smtpUser,
               pass: smtpPass
             }
           });
-        } else if (smtpUser.endsWith("@gmail.com")) {
+        } else if (smtpHost) {
           transporter = nodemailer.createTransport({
-            service: "gmail",
+            host: smtpHost,
+            port,
+            secure,
             auth: {
               user: smtpUser,
               pass: smtpPass

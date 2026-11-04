@@ -37,10 +37,6 @@ export const WorkspaceNavbar = ({
               <span className="text-base sm:text-lg font-black tracking-tight text-white drop-shadow-sm">
                 Projexa
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/50 bg-cyan-950/70 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-2xs">
-                <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                Hub
-              </span>
             </div>
             <p className="text-[10px] sm:text-[11px] font-medium text-cyan-200/80 truncate">
               Multi-Tenant Team Sprint Boards
